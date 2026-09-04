@@ -3,7 +3,7 @@ import json
 import time
 from flask import Blueprint, request, jsonify, current_app, send_from_directory, session
 from werkzeug.utils import secure_filename
-from app.utils import allowed_file, get_safe_filename, sanitize_uppercase, get_active_gemini_api_key
+from app.utils import allowed_file, get_safe_filename, sanitize_uppercase, get_active_gemini_api_key, convert_pdf_to_images
 from app.services.ocr_service import get_sample_std6_maths_paper, extract_paper_from_images
 from app.services.translation_service import translate_paper_structure, LANGUAGE_NAMES
 from app.services.docx_generator import build_docx_paper
@@ -14,7 +14,7 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 @api_bp.route('/upload', methods=['POST'])
 def upload_images():
-    """Handles multi-image uploads from the dropzone."""
+    """Handles multi-image and PDF document uploads from the dropzone."""
     if 'files' not in request.files and 'file' not in request.files:
         return jsonify({'success': False, 'error': 'No file uploaded'}), 400
 
@@ -29,18 +29,33 @@ def upload_images():
             safe_name = get_safe_filename(f.filename)
             target_path = os.path.join(upload_dir, safe_name)
             f.save(target_path)
-            uploaded_files.append({
-                'filename': safe_name,
-                'original_name': f.filename,
-                'url': f'/uploads/{safe_name}'
-            })
+
+            ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
+            if ext == 'pdf':
+                try:
+                    pdf_base = safe_name.rsplit('.', 1)[0]
+                    page_images = convert_pdf_to_images(
+                        pdf_path=target_path,
+                        output_dir=upload_dir,
+                        base_prefix=pdf_base,
+                        original_filename=f.filename
+                    )
+                    uploaded_files.extend(page_images)
+                except Exception as e:
+                    return jsonify({'success': False, 'error': f'Failed to process PDF document: {str(e)}'}), 400
+            else:
+                uploaded_files.append({
+                    'filename': safe_name,
+                    'original_name': f.filename,
+                    'url': f'/uploads/{safe_name}'
+                })
 
     if not uploaded_files:
-        return jsonify({'success': False, 'error': 'No valid image files found'}), 400
+        return jsonify({'success': False, 'error': 'No valid image or PDF files found'}), 400
 
     return jsonify({
         'success': True,
-        'message': f'Successfully uploaded {len(uploaded_files)} image(s)',
+        'message': f'Successfully uploaded and processed {len(uploaded_files)} page(s)',
         'files': uploaded_files
     })
 

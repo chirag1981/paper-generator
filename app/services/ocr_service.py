@@ -28,17 +28,30 @@ def extract_paper_from_images(
     if not HAS_VISION_AI:
         raise ImportError("google-generativeai or Pillow is not installed.")
 
+    import io
     valid_images = []
     for p in image_paths:
         if os.path.exists(p):
-            try:
-                img = Image.open(p)
-                valid_images.append(img)
-            except Exception as e:
-                print(f"[OCR] Warning: Could not open image {p}: {e}")
+            if p.lower().endswith('.pdf'):
+                try:
+                    import fitz
+                    doc = fitz.open(p)
+                    for page in doc:
+                        pix = page.get_pixmap(dpi=200)
+                        img = Image.open(io.BytesIO(pix.tobytes("png")))
+                        valid_images.append(img)
+                    doc.close()
+                except Exception as e:
+                    print(f"[OCR] Warning: Could not extract pages from PDF {p}: {e}")
+            else:
+                try:
+                    img = Image.open(p)
+                    valid_images.append(img)
+                except Exception as e:
+                    print(f"[OCR] Warning: Could not open image {p}: {e}")
 
     if not valid_images:
-        raise FileNotFoundError("No valid image files found to perform OCR.")
+        raise FileNotFoundError("No valid image or PDF pages found to perform OCR.")
 
     genai.configure(api_key=key)
 

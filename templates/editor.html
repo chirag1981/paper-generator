@@ -70,9 +70,9 @@
       </div>
       <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
         <!-- Upload Input & Button directly in Editor -->
-        <input type="file" id="editorFileInput" multiple accept="image/*" style="display: none;" onchange="handleEditorFileUpload(this.files)">
-        <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('editorFileInput').click()" style="background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.25); font-weight: 600; padding: 4px 9px;" title="Upload new handwritten exam images (resets old questions)">
-          <i class="fa-solid fa-cloud-arrow-up"></i> Upload
+        <input type="file" id="editorFileInput" multiple accept="image/*,application/pdf,.pdf" style="display: none;" onchange="handleEditorFileUpload(this.files)">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('editorFileInput').click()" style="background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.25); font-weight: 600; padding: 4px 9px;" title="Upload new exam images or PDF document (resets old questions)">
+          <i class="fa-solid fa-cloud-arrow-up"></i> Upload PDF/Images
         </button>
 
         <select id="ocrLangSelect" style="background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.25); border-radius: 4px; padding: 3px 6px; font-size: 0.8rem; outline: none;">

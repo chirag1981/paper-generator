@@ -68,3 +68,40 @@ def get_active_gemini_api_key() -> str:
         pass
 
     return ""
+
+
+def convert_pdf_to_images(pdf_path: str, output_dir: str, base_prefix: str, original_filename: str = "") -> list:
+    """
+    Converts each page of a PDF document into a high-resolution PNG image (200 DPI).
+    Returns a list of dicts: [{'filename': ..., 'original_name': ..., 'url': ...}]
+    """
+    import fitz
+    page_files = []
+    doc = fitz.open(pdf_path)
+    try:
+        if doc.is_encrypted:
+            raise ValueError("The uploaded PDF is password-protected. Please upload an unencrypted PDF file.")
+
+        total_pages = len(doc)
+        if total_pages == 0:
+            raise ValueError("The uploaded PDF document contains no pages.")
+
+        orig_base = original_filename or os.path.basename(pdf_path)
+
+        for page_idx in range(total_pages):
+            page = doc[page_idx]
+            # 200 DPI provides crisp text, math formulas, and geometry drawings
+            pix = page.get_pixmap(dpi=200)
+            img_filename = f"{base_prefix}_page_{page_idx + 1}.png"
+            img_target_path = os.path.join(output_dir, img_filename)
+            pix.save(img_target_path)
+
+            page_files.append({
+                'filename': img_filename,
+                'original_name': f"{orig_base} (Page {page_idx + 1})",
+                'url': f"/uploads/{img_filename}"
+            })
+    finally:
+        doc.close()
+
+    return page_files

@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     uploadProgress.style.display = 'block';
     progressBar.style.width = '20%';
-    uploadStatusText.innerText = `Uploading ${files.length} image(s)...`;
+    uploadStatusText.innerText = `Uploading and processing ${files.length} file(s)...`;
 
     const selectedLang = langSelect ? langSelect.value : 'auto';
     localStorage.setItem('selected_ocr_lang', selectedLang);

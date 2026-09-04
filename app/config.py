@@ -9,8 +9,8 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'exam-paper-ai-dev-secret-key-9876543210')
     UPLOAD_FOLDER = str(BASE_DIR / os.environ.get('UPLOAD_FOLDER', 'uploads'))
     EXPORT_FOLDER = str(BASE_DIR / os.environ.get('EXPORT_FOLDER', 'exports'))
-    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024)) # 16 MB
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'bmp'}
+    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_CONTENT_LENGTH', 32 * 1024 * 1024)) # 32 MB
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'bmp', 'pdf'}
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'

@@ -16,7 +16,7 @@
 
 <!-- Upload Options & Drag-and-Drop Zone -->
 <div class="dropzone-card" id="dropzone" style="position: relative;">
-  <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+  <input type="file" id="fileInput" multiple accept="image/*,application/pdf,.pdf" style="display: none;">
   
   <!-- Language Selector Bar -->
   <div style="display: inline-flex; align-items: center; gap: 8px; background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 20px; padding: 4px 14px; margin-bottom: 18px;">
@@ -34,15 +34,15 @@
     <i class="fa-solid fa-cloud-arrow-up"></i>
   </div>
   <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--slate-900); margin-bottom: 8px;">
-    Drop your handwritten exam pages here
+    Drop your PDF exam or handwritten pages here
   </h3>
   <p style="color: var(--slate-500); font-size: 0.95rem; margin-bottom: 20px;">
-    Supports JPG, PNG, WEBP images (Single or multi-page exams)
+    Supports <strong>PDF documents</strong> (multi-page) and <strong>JPG, PNG, WEBP</strong> images
   </p>
   
   <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
     <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
-      <i class="fa-solid fa-folder-open"></i> Browse &amp; Scan Images
+      <i class="fa-solid fa-folder-open"></i> Browse &amp; Scan PDF / Images
     </button>
     <a href="{{ url_for('main.editor') }}" class="btn btn-secondary">
       <i class="fa-solid fa-file-lines"></i> Open Preloaded Std. 6 Maths Exam
