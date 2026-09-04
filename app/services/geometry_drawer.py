@@ -172,3 +172,63 @@ def generate_pictograph_chart(output_path: str, classes_data=None, key_value=4):
 
     img.save(output_path, dpi=(300, 300))
     return output_path
+
+
+def generate_clock_diagram(output_path: str, hour: int = None, minute: int = None, show_hands: bool = False, size: int = 300):
+    """
+    Generates a crisp, high-resolution analog clock face diagram.
+    If show_hands is False, creates a blank clock dial with numbers 1 to 12, hour/minute ticks,
+    and a center pivot dot, perfect for 'Draw hands to show the correct times' questions.
+    If show_hands is True, draws the hour and minute hands pointing to the specified time.
+    """
+    import numpy as np
+
+    out_dir = os.path.dirname(os.path.abspath(output_path))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    fig, ax = plt.subplots(figsize=(3.2, 3.2), dpi=300)
+    circle = plt.Circle((0, 0), 1.0, color='#1e293b', fill=False, linewidth=2.4)
+    ax.add_patch(circle)
+
+    # Hour numbers & major ticks
+    for i in range(1, 13):
+        angle = np.pi / 2 - (2 * np.pi / 12) * i
+        x_tick_outer = np.cos(angle)
+        y_tick_outer = np.sin(angle)
+        x_tick_inner = 0.90 * np.cos(angle)
+        y_tick_inner = 0.90 * np.sin(angle)
+        ax.plot([x_tick_inner, x_tick_outer], [y_tick_inner, y_tick_outer], color='#1e293b', linewidth=2.0)
+        
+        x_num = 0.76 * np.cos(angle)
+        y_num = 0.76 * np.sin(angle)
+        ax.text(x_num, y_num, str(i), fontsize=12, fontweight='bold', ha='center', va='center', color='#0f172a', fontname='Arial')
+
+    # Minor minute ticks
+    for i in range(60):
+        if i % 5 != 0:
+            angle = np.pi / 2 - (2 * np.pi / 60) * i
+            ax.plot([0.95 * np.cos(angle), np.cos(angle)], [0.95 * np.sin(angle), np.sin(angle)], color='#64748b', linewidth=1.0)
+
+    # Draw hands if requested
+    if show_hands and hour is not None:
+        m = minute if minute is not None else 0
+        h_angle = np.pi / 2 - (2 * np.pi / 12) * ((hour % 12) + m / 60.0)
+        m_angle = np.pi / 2 - (2 * np.pi / 60) * m
+        # Hour hand (shorter, thicker)
+        ax.plot([0, 0.50 * np.cos(h_angle)], [0, 0.50 * np.sin(h_angle)], color='#0f172a', linewidth=3.5, solid_capstyle='round', zorder=4)
+        # Minute hand (longer, medium)
+        ax.plot([0, 0.75 * np.cos(m_angle)], [0, 0.75 * np.sin(m_angle)], color='#0f172a', linewidth=2.2, solid_capstyle='round', zorder=4)
+
+    # Center pivot point
+    ax.scatter(0, 0, color='#1e293b', s=35, zorder=5)
+
+    ax.set_xlim(-1.15, 1.15)
+    ax.set_ylim(-1.15, 1.15)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    plt.tight_layout()
+    plt.savefig(output_path, bbox_inches='tight', transparent=True, dpi=300)
+    plt.close()
+    return output_path
+

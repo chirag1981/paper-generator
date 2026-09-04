@@ -313,6 +313,7 @@
         if (sec.diagram_type === 'geometry_lines') imgSrc = '/static/img/figure_q3c.png';
         else if (sec.diagram_type === 'zigzag') imgSrc = '/static/img/figure_q3a3.png';
         else if (sec.diagram_type === 'pictograph') imgSrc = '/static/img/pictograph_clean.png';
+        else if (sec.diagram_type === 'clock' || sec.diagram_type === 'clock_blank') imgSrc = '/static/img/clock_blank.png';
 
         if (imgSrc) {
           const img = document.createElement('img');
@@ -345,6 +346,14 @@
           const img = document.createElement('img');
           img.src = '/static/img/figure_q3a3.png';
           img.style.width = '55%';
+          img.style.display = 'block';
+          img.style.margin = '10px auto';
+          secDiv.appendChild(img);
+        } else if (sec.diagram_type === 'clock' || sec.diagram_type === 'clock_blank') {
+          const img = document.createElement('img');
+          img.src = '/static/img/clock_blank.png';
+          img.style.width = '140px';
+          img.style.height = '140px';
           img.style.display = 'block';
           img.style.margin = '10px auto';
           secDiv.appendChild(img);
@@ -393,7 +402,8 @@
 
         const isHorizontalSubq = !isMcqSec && questions.length > 1 && !isExplicitVert && (
           isExplicitTwoCol ||
-          (isExplicitHoriz && questions.length <= 4 && !questions.some(q => q.answer_lines || q.diagram_type)) ||
+          questions.some(q => ['clock', 'clock_blank'].includes(q.diagram_type)) ||
+          (isExplicitHoriz && questions.length <= 4 && !questions.some(q => q.answer_lines || (q.diagram_type && !['clock', 'clock_blank'].includes(q.diagram_type)))) ||
           (questions.every(q => /^[\(\[]?[a-zA-Z0-9ivxlcdm]+[\)\]\.]/i.test((q.text || '').trim()) || (q.text || '').length < 45) && !questions.some(q => q.answer_lines || q.diagram_type))
         );
 
@@ -421,6 +431,14 @@
               for (let l = 1; l < q.answer_lines; l++) {
                 content += `<div style="border-bottom: 1.5px solid #94a3b8; width: 100%; height: 1.5em; margin-top: 4px;"></div>`;
               }
+            }
+            if (['clock', 'clock_blank'].includes(q.diagram_type)) {
+              content = `
+                <div style="text-align: center; margin-bottom: 6px;">
+                  <img src="/static/img/clock_blank.png" style="width: 130px; height: 130px; display: inline-block; object-fit: contain;">
+                </div>
+                <div style="text-align: center; font-size: 11pt; font-weight: 700;">${content}</div>
+              `;
             }
             qDiv.innerHTML = content;
             subGrid.appendChild(qDiv);
@@ -471,6 +489,13 @@
               qHtml += `<img src="/static/img/figure_q3c.png" style="width: 65%; display: block; margin: 8px auto; border-radius: 4px;">`;
             } else if (q.diagram_type === 'pictograph') {
               qHtml += `<img src="/static/img/pictograph_clean.png" style="width: 90%; display: block; margin: 8px auto; border-radius: 4px;">`;
+            } else if (q.diagram_type === 'clock' || q.diagram_type === 'clock_blank') {
+              qHtml = `
+                <div style="display: flex; flex-direction: column; align-items: center; margin: 8px 0;">
+                  <img src="/static/img/clock_blank.png" style="width: 135px; height: 135px; display: inline-block; object-fit: contain; margin-bottom: 6px;">
+                  <div style="${q.is_bold ? 'font-weight: 700;' : ''}">${formattedText}</div>
+                </div>
+              `;
             }
 
             if (q.supercell_cells) {
@@ -493,24 +518,50 @@
         });
 
         if (validBoxes.length > 0) {
+          const secTitle = String(sec.title || '').toLowerCase();
+          const isClockDrawing = (
+            secTitle.includes('draw hands') || secTitle.includes('clock') || secTitle.includes('time') ||
+            validBoxes.some(b => {
+              const s = String(b).toLowerCase();
+              return s.includes('quarter') || s.includes('half past') || s.includes('o\'clock') || s.includes('past');
+            })
+          );
+
           const boxGrid = document.createElement('div');
           boxGrid.style.display = 'grid';
           boxGrid.style.gridTemplateColumns = `repeat(${validBoxes.length}, 1fr)`;
-          boxGrid.style.gap = '12px';
-          boxGrid.style.margin = '12px 0';
-          validBoxes.forEach(b => {
-            const bDiv = document.createElement('div');
-            bDiv.style.border = '1px dashed #94a3b8';
-            bDiv.style.height = '90px';
-            bDiv.style.borderRadius = '4px';
-            bDiv.style.display = 'flex';
-            bDiv.style.alignItems = 'center';
-            bDiv.style.justifyContent = 'center';
-            bDiv.style.color = '#334155';
-            bDiv.style.fontWeight = 'bold';
-            bDiv.innerText = b;
-            boxGrid.appendChild(bDiv);
-          });
+          boxGrid.style.gap = '16px';
+          boxGrid.style.margin = '12px 0 16px';
+
+          if (isClockDrawing) {
+            validBoxes.forEach(b => {
+              const bDiv = document.createElement('div');
+              bDiv.style.textAlign = 'center';
+              let labelText = String(b).trim();
+              if (!labelText.includes('___') && !labelText.includes('...')) labelText += ' ____________';
+              bDiv.innerHTML = `
+                <div style="margin-bottom: 6px;">
+                  <img src="/static/img/clock_blank.png" style="width: 130px; height: 130px; display: inline-block; object-fit: contain;">
+                </div>
+                <div style="font-weight: 700; color: #1e293b; font-size: 11pt;">${labelText}</div>
+              `;
+              boxGrid.appendChild(bDiv);
+            });
+          } else {
+            validBoxes.forEach(b => {
+              const bDiv = document.createElement('div');
+              bDiv.style.border = '1px dashed #94a3b8';
+              bDiv.style.height = '90px';
+              bDiv.style.borderRadius = '4px';
+              bDiv.style.display = 'flex';
+              bDiv.style.alignItems = 'center';
+              bDiv.style.justifyContent = 'center';
+              bDiv.style.color = '#334155';
+              bDiv.style.fontWeight = 'bold';
+              bDiv.innerText = b;
+              boxGrid.appendChild(bDiv);
+            });
+          }
           secDiv.appendChild(boxGrid);
         }
       }

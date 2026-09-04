@@ -101,7 +101,8 @@ REQUIRED JSON SCHEMA:
       "drawing_boxes": ["optional list of student drawing box labels e.g. '(1) 40°', '(2) 75°'"],
       "page_break_before": false,
       "intro_text": "optional intro paragraph for data interpretation/figures e.g. 'In the given figure name the following:'",
-      "diagram_type": "optional section diagram: pictograph | zigzag | geometry_lines",
+      "diagram_type": "optional section diagram: pictograph | zigzag | geometry_lines | clock_blank | clock",
+      "subquestions_layout": "optional: horizontal | two_columns | vertical",
       "table_data": {{
         "headers": ["S.No", "Item", "CP (₹)", "SP (₹)", "Profit", "Loss"],
         "rows": [["A", "Ice-cream", "5", "10", "", ""]]
@@ -110,7 +111,7 @@ REQUIRED JSON SCHEMA:
         {{
           "text": "1) Name the line segments in the given figure...",
           "options": ["(a) ...", "(b) ..."],
-          "diagram_type": "optional question diagram: zigzag | geometry_lines | pictograph",
+          "diagram_type": "optional question diagram: zigzag | geometry_lines | pictograph | clock_blank | clock",
           "is_bold": true,
           "answer_lines": 2
         }}
@@ -126,12 +127,17 @@ CRITICAL RULES FOR FIGURES & DIAGRAMS (DO NOT OUTPUT TEXT PLACEHOLDERS):
    - Set "diagram_type": "geometry_lines" on the section/question (for intersecting lines and rays G-A-C-E with ray AB and line FD).
    - Set "diagram_type": "pictograph" for girl students/icon pictographs.
    - NEVER put descriptive placeholders like "[ Figure showing line segments... ]" or "[ Geometric figure with points... ]" into drawing_boxes or text.
-2. DRAWING BOXES vs DIAGRAMS:
+2. CLOCK & TIME DRAWING QUESTIONS (e.g. "Draw hands to show the correct times", "Tell the time"):
+   - When an exam paper contains analog clock dials or questions asking students to draw clock hands (e.g. "a. quarter to 2", "b. half past 7", "c. quarter past 9"):
+     NEVER put them into "drawing_boxes" as plain text placeholders!
+     Instead, output each item as a question with "diagram_type": "clock_blank" (or "clock" if hands are pre-drawn).
+     Set the section's "subquestions_layout": "horizontal" so they display side-by-side in columns with the clock face on top and the label/blank line underneath.
+3. DRAWING BOXES vs DIAGRAMS:
    - "drawing_boxes" are ONLY empty answer boxes for student construction questions (e.g. Q-3(D) "Use a protractor to draw angles: 40°, 75°, 95°, 82°" -> drawing_boxes: ["(1) 40°", "(2) 75°", "(3) 95°", "(4) 82°"]).
-   - Do NOT put existing question diagrams inside drawing_boxes!
-3. CAPTURE ALL CONTENT VERBATIM:
+   - Do NOT put existing question diagrams or clock faces inside drawing_boxes!
+4. CAPTURE ALL CONTENT VERBATIM:
    - Capture all sections, marks (e.g. (8), [4]), fractions (e.g. "3/4 + 7/4 = ______"), tables, and sub-questions from Page 1 all the way to Page {num_pages}.
-4. Output MUST be RAW JSON only. Do not add markdown code fences or backticks.
+5. Output MUST be RAW JSON only. Do not add markdown code fences or backticks.
 """
 
     env_model = os.environ.get('GEMINI_MODEL', '').strip()
@@ -223,6 +229,32 @@ def sanitize_and_fix_paper_diagrams(paper: Dict[str, Any]) -> Dict[str, Any]:
         elif "drawing_boxes" in sec and not cleaned_boxes:
             sec.pop("drawing_boxes", None)
 
+        # Detect Clock / Time drawing questions or misplaced drawing boxes
+        is_clock_sec = (
+            any(k in sec_title or k in sec_intro for k in ["draw hands", "clock", "show the correct time", "correct times"]) or
+            any(any(t in str(b).lower() for t in ["quarter", "half past", "o'clock", "past 7", "to 2", "past 9"]) for b in sec.get("drawing_boxes", []))
+        )
+        if is_clock_sec:
+            if sec.get("drawing_boxes"):
+                clock_questions = []
+                for b in sec["drawing_boxes"]:
+                    b_str = str(b).strip()
+                    if "___" not in b_str and "..." not in b_str:
+                        b_str = f"{b_str} ____________"
+                    clock_questions.append({
+                        "text": b_str,
+                        "diagram_type": "clock_blank",
+                        "is_bold": True
+                    })
+                sec["questions"] = clock_questions
+                sec["subquestions_layout"] = "horizontal"
+                sec.pop("drawing_boxes", None)
+            else:
+                for q in sec.get("questions", []):
+                    if not q.get("diagram_type"):
+                        q["diagram_type"] = "clock_blank"
+                sec["subquestions_layout"] = sec.get("subquestions_layout") or "horizontal"
+
         # Detect Section-Level Geometry Diagrams
         if any(term in sec_title or term in sec_intro for term in ["in the figure name", "in the given figure name", "geometric figure analysis"]):
             sec["diagram_type"] = "geometry_lines"
@@ -236,6 +268,9 @@ def sanitize_and_fix_paper_diagrams(paper: Dict[str, Any]) -> Dict[str, Any]:
                 q["diagram_type"] = "zigzag"
             elif any(term in q_text for term in ["five points", "two lines", "four rays", "a line segment"]) and "diagram_type" not in sec:
                 sec["diagram_type"] = "geometry_lines"
+            elif any(term in q_text for term in ["draw hands", "quarter to", "half past", "quarter past", "o'clock", "clock face"]):
+                if not q.get("diagram_type"):
+                    q["diagram_type"] = "clock_blank"
 
             # Strip out any 'Ans:' or generic answer prefixes
             if q.get("answer_prefix", "").strip().lower() in ["ans:", "ans.", "ans", "answer:", "answer"]:

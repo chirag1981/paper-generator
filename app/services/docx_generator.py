@@ -12,7 +12,8 @@ from docx.oxml.ns import nsdecls
 from app.services.geometry_drawer import (
     generate_zigzag_diagram,
     generate_lines_rays_diagram,
-    generate_pictograph_chart
+    generate_pictograph_chart,
+    generate_clock_diagram
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,8 @@ DIAGRAM_WIDTHS = {
     'pictograph': {'side_by_side': Inches(2.9), 'standalone': Inches(3.4), 'inline': Inches(3.0)},
     'zigzag': {'side_by_side': Inches(2.2), 'standalone': Inches(2.2), 'inline': Inches(1.8)},
     'geometry_lines': {'side_by_side': Inches(2.7), 'standalone': Inches(2.8), 'inline': Inches(2.8)},
+    'clock': {'side_by_side': Inches(1.5), 'standalone': Inches(1.8), 'inline': Inches(1.5)},
+    'clock_blank': {'side_by_side': Inches(1.5), 'standalone': Inches(1.8), 'inline': Inches(1.5)},
 }
 
 # Regex to match question numbering prefixes like 1), (1), a), (a), A), (A), i), (i)
@@ -216,6 +219,8 @@ def _safe_generate_diagram(diag_type: str, img_path: str) -> bool:
             generate_lines_rays_diagram(img_path)
         elif diag_type == 'pictograph':
             generate_pictograph_chart(img_path)
+        elif diag_type in ['clock', 'clock_blank']:
+            generate_clock_diagram(img_path, show_hands=(diag_type == 'clock'))
         return os.path.exists(img_path)
     except Exception as e:
         logger.warning(f"Failed to generate {diag_type} diagram at '{img_path}': {e}")
@@ -680,7 +685,7 @@ def _render_table_data(doc, sec: dict):
             add_formatted_math_text(p, str(val), font_size=DOCX_BODY_FONT_SIZE)
 
 
-def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizontal'):
+def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizontal', temp_dir: str = None):
     """Renders short sub-questions in equal-width borderless columns (1 row or 2 columns side-by-side)."""
     is_two_col = layout in ['two_columns', '2_columns', '2col', 'two-columns']
     if is_two_col:
@@ -701,7 +706,22 @@ def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizon
             cell = sub_tbl.rows[r_idx].cells[c_idx]
             cell.width = col_width
             set_cell_margins(cell, top=10, bottom=16, left=15, right=15)
-            p_sub = cell.paragraphs[0]
+            q_diag = q.get('diagram_type')
+
+            if q_diag in ['clock', 'clock_blank']:
+                clock_path = os.path.join(temp_dir, f"q_{q_idx}_{q_diag}.png") if temp_dir else f"static/img/{q_diag}.png"
+                if not os.path.exists(clock_path):
+                    _safe_generate_diagram(q_diag, clock_path)
+                p_clock = cell.paragraphs[0]
+                p_clock.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                fmt_paragraph(p_clock, before=Pt(2), after=Pt(4), spacing=1.0)
+                if os.path.exists(clock_path):
+                    p_clock.add_run().add_picture(clock_path, width=Inches(1.5))
+                p_sub = cell.add_paragraph()
+            else:
+                p_sub = cell.paragraphs[0]
+
+            p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER if q_diag in ['clock', 'clock_blank'] else WD_ALIGN_PARAGRAPH.LEFT
             fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER if not q.get('answer_lines') else Pt(2), spacing=DOCX_LINE_SPACING)
             add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
             if q.get('answer_lines'):
@@ -734,7 +754,22 @@ def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizon
             cell = sub_tbl.rows[0].cells[q_idx]
             cell.width = col_width
             set_cell_margins(cell, top=15, bottom=25, left=15, right=15)
-            p_sub = cell.paragraphs[0]
+            q_diag = q.get('diagram_type')
+
+            if q_diag in ['clock', 'clock_blank']:
+                clock_path = os.path.join(temp_dir, f"q_{q_idx}_{q_diag}.png") if temp_dir else f"static/img/{q_diag}.png"
+                if not os.path.exists(clock_path):
+                    _safe_generate_diagram(q_diag, clock_path)
+                p_clock = cell.paragraphs[0]
+                p_clock.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                fmt_paragraph(p_clock, before=Pt(2), after=Pt(4), spacing=1.0)
+                if os.path.exists(clock_path):
+                    p_clock.add_run().add_picture(clock_path, width=Inches(1.5))
+                p_sub = cell.add_paragraph()
+            else:
+                p_sub = cell.paragraphs[0]
+
+            p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER if q_diag in ['clock', 'clock_blank'] else WD_ALIGN_PARAGRAPH.LEFT
             fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER, spacing=DOCX_LINE_SPACING)
             add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
 
@@ -912,11 +947,49 @@ def _render_general_question(doc, q: dict, q_text: str, temp_dir: str, q_idx: in
             r_line.font.color.rgb = RGBColor(100, 116, 139)
 
 
-def _render_drawing_boxes(doc, sec: dict):
-    """Renders dashed boxes for student construction/drawing answers."""
+def _render_drawing_boxes(doc, sec: dict, temp_dir: str = None):
+    """Renders dashed boxes for student construction/drawing answers, or clock faces if time-related."""
     raw_boxes = sec.get('drawing_boxes', [])
     boxes = [b for b in raw_boxes if not any(k in str(b).lower() for k in ["figure showing", "geometric figure", "points l, m, p", "points o, c, a"])]
     if not boxes:
+        return
+
+    sec_title = (sec.get('title') or '').lower()
+    is_clock_drawing = (
+        any(k in sec_title for k in ['draw hands', 'clock', 'time', 'times']) or
+        any(any(t in str(b).lower() for t in ['quarter', 'half past', 'o\'clock', 'past', ':']) for b in boxes)
+    )
+
+    if is_clock_drawing:
+        tbl_box = doc.add_table(rows=1, cols=len(boxes))
+        tbl_box.alignment = WD_TABLE_ALIGNMENT.LEFT
+        tbl_box.autofit = False
+        prevent_row_split(tbl_box)
+        set_no_borders(tbl_box)
+        col_w_box = Inches(PAGE_CONTENT_WIDTH_INCHES / len(boxes))
+        for col in tbl_box.columns:
+            col.width = col_w_box
+
+        clock_path = os.path.join(temp_dir, 'clock_blank.png') if temp_dir else 'static/img/clock_blank.png'
+        if not os.path.exists(clock_path):
+            _safe_generate_diagram('clock_blank', clock_path)
+
+        for i, label in enumerate(boxes):
+            c = tbl_box.rows[0].cells[i]
+            c.width = col_w_box
+            set_cell_margins(c, top=10, bottom=20, left=15, right=15)
+            p_img = c.paragraphs[0]
+            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            fmt_paragraph(p_img, before=Pt(2), after=Pt(4), spacing=1.0)
+            if os.path.exists(clock_path):
+                p_img.add_run().add_picture(clock_path, width=Inches(1.5))
+            p_lbl = c.add_paragraph()
+            p_lbl.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            fmt_paragraph(p_lbl, before=Pt(2), after=DOCX_QUESTION_SPACE_AFTER, spacing=DOCX_LINE_SPACING)
+            lbl_text = str(label)
+            if '___' not in lbl_text and '...' not in lbl_text:
+                lbl_text = f"{lbl_text} ____________"
+            add_formatted_math_text(p_lbl, lbl_text, font_size=DOCX_BODY_FONT_SIZE, is_bold=True)
         return
 
     tbl_box = doc.add_table(rows=1, cols=len(boxes))
@@ -946,8 +1019,8 @@ def _render_drawing_boxes(doc, sec: dict):
 
 def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -> str:
     """
-    Builds an exact, beautifully formatted exam document with multilingual font support,
-    clean paragraph spacing, native math fractions, and automated geometry diagrams.
+    Main builder producing print-ready, professional examination papers in DOCX format.
+    Ensures modularity, clean typography, dynamic question grouping, and robust error handling.
     """
     if not temp_dir:
         temp_dir = os.path.dirname(output_path) or '.'
@@ -972,11 +1045,9 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
         section.right_margin = Inches(0.5)
 
     meta = paper_data.get('metadata', {})
-    total_marks = str(meta.get('total_marks') or '').strip()
-
-    # Dynamic question marks summary
     q_summary, calc_total = extract_question_summary(paper_data)
-    if not total_marks and calc_total > 0:
+    total_marks = meta.get('total_marks', '')
+    if not total_marks or total_marks == '60':
         total_marks = str(calc_total)
 
     # 1. Header & Title Block
@@ -1037,6 +1108,7 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
                 not is_explicit_vert and
                 (
                     is_explicit_two_col or
+                    any(q.get('diagram_type') in ['clock', 'clock_blank'] for q in questions) or
                     (is_explicit_horiz and len(questions) <= 4 and not any(q.get('answer_lines') for q in questions)) or
                     (all(QUESTION_PREFIX_REGEX.match(q.get('text', '').strip()) or len(q.get('text', '')) < 45 for q in questions) and not any(q.get('answer_lines') for q in questions))
                 )
@@ -1044,7 +1116,7 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
 
             if is_subq_grid:
                 grid_layout = 'two_columns' if is_explicit_two_col else 'horizontal'
-                _render_horizontal_subquestions(doc, questions, layout=grid_layout)
+                _render_horizontal_subquestions(doc, questions, layout=grid_layout, temp_dir=temp_dir)
             else:
                 for q_idx, q in enumerate(questions):
                     q_text = q.get('text', '')
@@ -1059,7 +1131,7 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
                         _render_general_question(doc, q, q_text, temp_dir, q_idx)
 
         if sec.get('drawing_boxes'):
-            _render_drawing_boxes(doc, sec)
+            _render_drawing_boxes(doc, sec, temp_dir=temp_dir)
 
     doc.save(output_path)
     return output_path

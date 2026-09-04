@@ -798,7 +798,8 @@ function renderEditor() {
     const secDiagram = sec.diagram_type || '';
     const secDiagPreview = secDiagram === 'geometry_lines' ? '<img src="/static/img/figure_q3c.png" style="max-height: 70px; border: 1px solid #cbd5e1; border-radius: 4px; margin-top: 6px;">' :
       (secDiagram === 'zigzag' ? '<img src="/static/img/figure_q3a3.png" style="max-height: 60px; border: 1px solid #cbd5e1; border-radius: 4px; margin-top: 6px;">' :
-      (secDiagram === 'pictograph' ? '<img src="/static/img/pictograph_clean.png" style="max-height: 80px; border: 1px solid #cbd5e1; border-radius: 4px; margin-top: 6px;">' : ''));
+      (secDiagram === 'pictograph' ? '<img src="/static/img/pictograph_clean.png" style="max-height: 80px; border: 1px solid #cbd5e1; border-radius: 4px; margin-top: 6px;">' :
+      (['clock', 'clock_blank'].includes(secDiagram) ? '<img src="/static/img/clock_blank.png" style="max-height: 75px; border: 1px solid #cbd5e1; border-radius: 4px; margin-top: 6px;">' : '')));
     const secLayout = sec.diagram_layout || 'side_by_side';
 
     body.innerHTML += `
@@ -811,6 +812,8 @@ function renderEditor() {
               <option value="geometry_lines" ${secDiagram === 'geometry_lines' ? 'selected' : ''}>📐 Geometry: Intersecting Lines & Rays (G-A-C-E, Ray AB, Line FD)</option>
               <option value="zigzag" ${secDiagram === 'zigzag' ? 'selected' : ''}>📐 Geometry: Zigzag Polyline (L-M-P-Q-R)</option>
               <option value="pictograph" ${secDiagram === 'pictograph' ? 'selected' : ''}>📊 Chart: Pictograph (Girl Students)</option>
+              <option value="clock_blank" ${secDiagram === 'clock_blank' ? 'selected' : ''}>🕒 Clock: Blank Clock Face (Draw Hands)</option>
+              <option value="clock" ${secDiagram === 'clock' ? 'selected' : ''}>🕒 Clock: Clock with Hands</option>
             </select>
           </div>
           ${secDiagram ? `
@@ -932,7 +935,8 @@ function renderEditor() {
       const qDiag = q.diagram_type || '';
       const qDiagImg = qDiag === 'zigzag' ? '<img src="/static/img/figure_q3a3.png" style="max-height: 55px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 6px auto;">' :
         (qDiag === 'geometry_lines' ? '<img src="/static/img/figure_q3c.png" style="max-height: 65px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 6px auto;">' :
-        (qDiag === 'pictograph' ? '<img src="/static/img/pictograph_clean.png" style="max-height: 75px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 6px auto;">' : ''));
+        (qDiag === 'pictograph' ? '<img src="/static/img/pictograph_clean.png" style="max-height: 75px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 6px auto;">' :
+        (['clock', 'clock_blank'].includes(qDiag) ? '<img src="/static/img/clock_blank.png" style="max-height: 75px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 6px auto;">' : '')));
 
       // Live formatted math preview
       const previewHtml = `
@@ -961,6 +965,8 @@ function renderEditor() {
                   <option value="zigzag" ${qDiag === 'zigzag' ? 'selected' : ''}>Zigzag Polyline (L-M-P-Q-R)</option>
                   <option value="geometry_lines" ${qDiag === 'geometry_lines' ? 'selected' : ''}>Intersecting Lines & Rays</option>
                   <option value="pictograph" ${qDiag === 'pictograph' ? 'selected' : ''}>Pictograph Chart</option>
+                  <option value="clock_blank" ${qDiag === 'clock_blank' ? 'selected' : ''}>🕒 Clock: Blank Clock Face (Draw Hands)</option>
+                  <option value="clock" ${qDiag === 'clock' ? 'selected' : ''}>🕒 Clock: Clock with Hands</option>
                 </select>
               </div>
               ${(sec.type === 'mcq' || hasQOpts) ? `
