@@ -147,7 +147,14 @@ CRITICAL RULES FOR FIGURES & DIAGRAMS (DO NOT OUTPUT TEXT PLACEHOLDERS):
 """
 
     env_model = os.environ.get('GEMINI_MODEL', '').strip()
-    model_names = [m for m in [env_model, 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'] if m]
+    candidate_models = [env_model, 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-flash-latest']
+    # Deduplicate while preserving priority order
+    seen = set()
+    model_names = []
+    for m in candidate_models:
+        if m and m not in seen:
+            seen.add(m)
+            model_names.append(m)
     last_err = None
 
     for m_name in model_names:

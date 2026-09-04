@@ -53,7 +53,13 @@ def _translate_with_gemini(paper_data: Dict[str, Any], target_lang: str, lang_na
 
     # Try fast flash models first
     env_model = os.environ.get('GEMINI_MODEL', '').strip()
-    model_names = [m for m in [env_model, 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'] if m]
+    candidate_models = [env_model, 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-flash-latest']
+    seen = set()
+    model_names = []
+    for m in candidate_models:
+        if m and m not in seen:
+            seen.add(m)
+            model_names.append(m)
     last_err = None
 
     prompt = f"""You are an expert bilingual educational exam translator specializing in Indian school curricula.
