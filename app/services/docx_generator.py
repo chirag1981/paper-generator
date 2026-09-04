@@ -676,7 +676,8 @@ def _render_table_data(doc, sec: dict):
 
 def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizontal'):
     """Renders short sub-questions in equal-width borderless columns (1 row or 2 columns side-by-side)."""
-    if layout == 'two_columns':
+    is_two_col = layout in ['two_columns', '2_columns', '2col', 'two-columns']
+    if is_two_col:
         num_cols = 2
         num_rows = (len(questions) + 1) // 2
         sub_tbl = doc.add_table(rows=num_rows, cols=num_cols)
@@ -695,8 +696,22 @@ def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizon
             cell.width = col_width
             set_cell_margins(cell, top=10, bottom=16, left=15, right=15)
             p_sub = cell.paragraphs[0]
-            fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER, spacing=DOCX_LINE_SPACING)
+            fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER if not q.get('answer_lines') else Pt(2), spacing=DOCX_LINE_SPACING)
             add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
+            if q.get('answer_lines'):
+                for l_idx in range(q['answer_lines']):
+                    p_ans = cell.add_paragraph()
+                    ans_after = DOCX_QUESTION_SPACE_AFTER if l_idx == q['answer_lines'] - 1 else Pt(1)
+                    fmt_paragraph(p_ans, before=Pt(1), after=ans_after, spacing=1.0)
+                    prefix = q.get('answer_prefix', 'Ans: ') if l_idx == 0 else '      '
+                    r_p = p_ans.add_run(prefix)
+                    set_run_font(r_p, 'Nirmala UI')
+                    r_p.font.size = Pt(9.5)
+                    r_p.font.bold = (l_idx == 0)
+                    r_line = p_ans.add_run('___________________________')
+                    set_run_font(r_line, 'Nirmala UI')
+                    r_line.font.size = Pt(9.5)
+                    r_line.font.color.rgb = RGBColor(100, 116, 139)
     else:
         sub_tbl = doc.add_table(rows=1, cols=len(questions))
         sub_tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
@@ -729,8 +744,10 @@ def _render_mcq_question(doc, q: dict, q_text: str, q_idx: int = 0, default_layo
         return
 
     layout = q.get('options_layout') or default_layout or 'horizontal'
+    is_two_col = layout in ['two_columns', '2_columns', '2col', 'two-columns']
+    is_vertical = layout in ['vertical', 'stacked']
 
-    if layout == 'two_columns':
+    if is_two_col:
         num_cols = 2
         num_rows = (len(opts) + 1) // 2
         t_opt = doc.add_table(rows=num_rows, cols=num_cols)
@@ -754,7 +771,7 @@ def _render_mcq_question(doc, q: dict, q_text: str, q_idx: int = 0, default_layo
             fmt_paragraph(p_opt, before=Pt(0), after=opt_after, spacing=1.0)
             add_formatted_math_text(p_opt, opt, font_size=DOCX_BODY_FONT_SIZE)
 
-    elif layout == 'vertical':
+    elif is_vertical:
         for i, opt in enumerate(opts):
             p_opt = doc.add_paragraph()
             opt_after = DOCX_QUESTION_SPACE_AFTER if i == len(opts) - 1 else Pt(3)
@@ -991,26 +1008,36 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
 
         render_general_questions = not is_side_by_side
         if render_general_questions:
-            sec_opt_layout = sec.get('options_layout', 'horizontal')
-            sec_sub_layout = sec.get('subquestions_layout') or sec_opt_layout
+            sec_opt_layout = sec.get('options_layout') or sec.get('subquestions_layout') or 'horizontal'
+            sec_sub_layout = sec.get('subquestions_layout') or sec.get('options_layout') or 'horizontal'
+
+            is_explicit_two_col = sec_sub_layout in ['two_columns', '2_columns', '2col', 'two-columns']
+            is_explicit_horiz = sec_sub_layout in ['horizontal', '1_row']
+            is_explicit_vert = sec_sub_layout in ['vertical', 'stacked']
 
             # Check if non-MCQ questions in this section should be rendered horizontally or 2-column grid
+            has_options_any = any(bool(q.get('options')) for q in questions)
+            is_mcq_sec = (str(q_type).lower() == 'mcq') or has_options_any
+
             is_subq_grid = (
-                q_type != 'mcq' and 
-                len(questions) in [2, 3, 4] and 
-                not any(q.get('answer_lines') for q in questions) and
+                not is_mcq_sec and 
+                len(questions) > 1 and 
+                not is_explicit_vert and
                 (
-                    sec_sub_layout in ['horizontal', 'two_columns'] or
-                    (sec_sub_layout != 'vertical' and all(QUESTION_PREFIX_REGEX.match(q.get('text', '').strip()) or len(q.get('text', '')) < 45 for q in questions))
+                    is_explicit_two_col or
+                    (is_explicit_horiz and len(questions) <= 4 and not any(q.get('answer_lines') for q in questions)) or
+                    (all(QUESTION_PREFIX_REGEX.match(q.get('text', '').strip()) or len(q.get('text', '')) < 45 for q in questions) and not any(q.get('answer_lines') for q in questions))
                 )
             )
 
-            if is_subq_grid and len(questions) > 1 and sec_sub_layout != 'vertical':
-                _render_horizontal_subquestions(doc, questions, layout=(sec_sub_layout if sec_sub_layout in ['two_columns', 'horizontal'] else 'horizontal'))
+            if is_subq_grid:
+                grid_layout = 'two_columns' if is_explicit_two_col else 'horizontal'
+                _render_horizontal_subquestions(doc, questions, layout=grid_layout)
             else:
                 for q_idx, q in enumerate(questions):
                     q_text = q.get('text', '')
-                    if q_type == 'mcq':
+                    q_has_opts = bool(q.get('options'))
+                    if str(q_type).lower() == 'mcq' or q_has_opts:
                         _render_mcq_question(doc, q, q_text, q_idx, default_layout=sec_opt_layout)
                     elif q_type == 'true_false':
                         _render_true_false_question(doc, q_text, q_idx)

@@ -670,13 +670,14 @@ function updateQuestionLivePreview(sIdx, qIdx) {
   const q = paperData.sections[sIdx].questions[qIdx];
   const sec = paperData.sections[sIdx];
   
-  const effectiveLayout = q.options_layout || sec.options_layout || 'horizontal';
-  let optGridCols = `repeat(${q.options?.length || 4}, 1fr)`;
-  if (effectiveLayout === 'two_columns') optGridCols = 'repeat(2, 1fr)';
-  else if (effectiveLayout === 'vertical') optGridCols = '1fr';
+  const effectiveLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'horizontal';
+  const isTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(effectiveLayout);
+  const isVert = ['vertical', 'stacked', '1_col'].includes(effectiveLayout);
+  let optGridCols = isTwoCol ? 'repeat(2, 1fr)' : (isVert ? '1fr' : `repeat(${q.options?.length || 4}, 1fr)`);
 
   let html = `<div style="font-weight: 600;">${formatMathFractions(q.text || 'Question...')}</div>`;
-  if (sec.type === 'mcq' && q.options) {
+  const hasOpts = Array.isArray(q.options) && q.options.length > 0;
+  if ((sec.type === 'mcq' || hasOpts) && q.options) {
     html += `
       <div class="math-options-grid" style="display: grid; grid-template-columns: ${optGridCols}; gap: 8px;">
         ${q.options.map(opt => `<div>${formatMathFractions(opt)}</div>`).join('')}
@@ -757,6 +758,12 @@ function renderEditor() {
         <input type="text" class="section-title-input" value="${sec.title || ''}" placeholder="Section Title (e.g. Q-1 (A) Choose the correct answer)" onchange="updateSectionTitle(${sIdx}, this.value)">
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
+        <select class="input-control" style="width: auto; font-size: 0.8rem; padding: 2px 6px; font-weight: 600;" onchange="updateSectionType(${sIdx}, this.value)" title="Section Type">
+          <option value="mcq" ${sec.type === 'mcq' ? 'selected' : ''}>MCQ / Options</option>
+          <option value="fill_in_blanks" ${sec.type === 'fill_in_blanks' ? 'selected' : ''}>Fill in Blanks</option>
+          <option value="true_false" ${sec.type === 'true_false' ? 'selected' : ''}>True / False</option>
+          <option value="general" ${sec.type === 'general' ? 'selected' : ''}>General / Math</option>
+        </select>
         <input type="text" class="section-marks-input" value="${sec.marks || ''}" placeholder="Marks e.g. (5)" onchange="updateSectionMarks(${sIdx}, this.value)">
         <button type="button" class="btn btn-sm btn-danger" style="padding: 2px 6px; font-size: 0.8rem;" onclick="deleteSection(${sIdx})" title="Delete Section"><i class="fa-solid fa-trash"></i></button>
       </div>
@@ -821,20 +828,22 @@ function renderEditor() {
     `;
 
     // Section Options / Sub-questions Layout Selector
-    const secOptLayout = sec.options_layout || 'horizontal';
+    const secOptLayout = sec.options_layout || sec.subquestions_layout || 'horizontal';
+    const isSecTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(secOptLayout);
+    const hasSecOpts = (sec.questions || []).some(q => q.options && q.options.length > 0);
     body.innerHTML += `
       <div class="field-group" style="margin-bottom: 12px; background: #f8fafc; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           <label class="field-label" style="margin: 0; font-weight: 700; color: #1e293b;">
-            <i class="fa-solid fa-table-columns" style="color: var(--primary-600);"></i> ${sec.type === 'mcq' ? 'MCQ Options Layout:' : 'Sub-Questions Layout:'}
+            <i class="fa-solid fa-table-columns" style="color: var(--primary-600);"></i> ${(sec.type === 'mcq' || hasSecOpts) ? 'MCQ Options Layout:' : 'Sub-Questions Layout:'}
           </label>
           <select class="input-control" style="width: auto; font-size: 0.82rem; padding: 3px 8px; font-weight: 600;" onchange="updateSectionOptionsLayout(${sIdx}, this.value)">
-            <option value="horizontal" ${secOptLayout === 'horizontal' ? 'selected' : ''}>Horizontal (1 Row - Side-by-side across page)</option>
-            <option value="two_columns" ${secOptLayout === 'two_columns' ? 'selected' : ''}>2 Columns (Side-by-Side / 2x2 Grid)</option>
+            <option value="horizontal" ${(!isSecTwoCol && secOptLayout !== 'vertical') ? 'selected' : ''}>Horizontal (1 Row - Side-by-side across page)</option>
+            <option value="two_columns" ${isSecTwoCol ? 'selected' : ''}>2 Columns (Side-by-Side / 2x2 Grid)</option>
             <option value="vertical" ${secOptLayout === 'vertical' ? 'selected' : ''}>Vertical (Stacked - 1 per line)</option>
           </select>
         </div>
-        <span style="font-size: 0.76rem; color: #64748b;">Controls layout for 2, 3, or 4 options in docx, pdf & preview</span>
+        <span style="font-size: 0.76rem; color: #64748b;">Controls 2-column or horizontal grid for options and sub-questions in docx, pdf & preview</span>
       </div>
     `;
 
@@ -900,13 +909,17 @@ function renderEditor() {
       qRow.style.borderRadius = '6px';
       qRow.style.marginBottom = '10px';
 
-      const effectiveLayout = q.options_layout || sec.options_layout || 'horizontal';
-      let optGridCols = `repeat(${q.options?.length || 4}, 1fr)`;
-      if (effectiveLayout === 'two_columns') optGridCols = 'repeat(2, 1fr)';
-      else if (effectiveLayout === 'vertical') optGridCols = '1fr';
+      const effectiveLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'horizontal';
+      const isQTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(effectiveLayout);
+      const isQVert = ['vertical', 'stacked', '1_col'].includes(effectiveLayout);
+      let optGridCols = isQTwoCol ? 'repeat(2, 1fr)' : (isQVert ? '1fr' : `repeat(${q.options?.length || 4}, 1fr)`);
 
+      const hasQOpts = Array.isArray(q.options) && q.options.length > 0;
       let extraContent = '';
-      if (sec.type === 'mcq' && q.options) {
+      if (sec.type === 'mcq' || hasQOpts) {
+        if (!q.options || q.options.length === 0) {
+          q.options = ['(A) ', '(B) ', '(C) ', '(D) '];
+        }
         extraContent = `
           <div style="display: grid; grid-template-columns: ${optGridCols}; gap: 6px; margin-top: 8px;">
             ${q.options.map((opt, oIdx) => `
@@ -926,7 +939,7 @@ function renderEditor() {
         <div class="math-preview-card" id="q_preview_${sIdx}_${qIdx}">
           <div style="font-weight: 600;">${formatMathFractions(q.text || 'Question...')}</div>
           ${qDiagImg}
-          ${sec.type === 'mcq' && q.options ? `
+          ${(sec.type === 'mcq' || hasQOpts) && q.options ? `
             <div class="math-options-grid" style="display: grid; grid-template-columns: ${optGridCols}; gap: 8px;">
               ${q.options.map(opt => `<div>${formatMathFractions(opt)}</div>`).join('')}
             </div>
@@ -950,13 +963,13 @@ function renderEditor() {
                   <option value="pictograph" ${qDiag === 'pictograph' ? 'selected' : ''}>Pictograph Chart</option>
                 </select>
               </div>
-              ${sec.type === 'mcq' && q.options ? `
+              ${(sec.type === 'mcq' || hasQOpts) ? `
               <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #475569;">
                 <span><i class="fa-solid fa-table-columns"></i> Layout:</span>
                 <select style="font-size: 0.76rem; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc; font-weight: 600;" onchange="updateQuestionOptionsLayout(${sIdx}, ${qIdx}, this.value)">
-                  <option value="" ${!q.options_layout ? 'selected' : ''}>Default (${secOptLayout === 'two_columns' ? '2 Cols' : (secOptLayout === 'vertical' ? 'Vertical' : 'Horizontal')})</option>
+                  <option value="" ${!q.options_layout ? 'selected' : ''}>Default (${isSecTwoCol ? '2 Cols' : (secOptLayout === 'vertical' ? 'Vertical' : 'Horizontal')})</option>
                   <option value="horizontal" ${q.options_layout === 'horizontal' ? 'selected' : ''}>Horizontal (1 Row)</option>
-                  <option value="two_columns" ${q.options_layout === 'two_columns' ? 'selected' : ''}>2 Columns (Side-by-Side)</option>
+                  <option value="two_columns" ${['two_columns', '2_columns', '2col', 'two-columns'].includes(q.options_layout) ? 'selected' : ''}>2 Columns (Side-by-Side)</option>
                   <option value="vertical" ${q.options_layout === 'vertical' ? 'selected' : ''}>Vertical (Stacked)</option>
                 </select>
               </div>
@@ -1014,6 +1027,21 @@ function updateSectionDiagramLayout(sIdx, val) {
 function updateSectionOptionsLayout(sIdx, val) {
   if (paperData && paperData.sections[sIdx]) {
     paperData.sections[sIdx].options_layout = val;
+    paperData.sections[sIdx].subquestions_layout = val;
+    // Clear question-level overrides so all questions follow the chosen section layout
+    if (Array.isArray(paperData.sections[sIdx].questions)) {
+      paperData.sections[sIdx].questions.forEach(q => {
+        delete q.options_layout;
+      });
+    }
+    saveToLocal();
+    renderEditor();
+  }
+}
+
+function updateSectionType(sIdx, val) {
+  if (paperData && paperData.sections[sIdx]) {
+    paperData.sections[sIdx].type = val;
     saveToLocal();
     renderEditor();
   }

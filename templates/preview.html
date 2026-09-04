@@ -378,17 +378,24 @@
           secDiv.appendChild(t);
         }
 
-        const secSubLayout = sec.subquestions_layout || sec.options_layout;
-        const isHorizontalSubq = sec.type !== 'mcq' && questions.length > 1 && !questions.some(q => q.answer_lines || q.diagram_type) && (
-          (secSubLayout === 'horizontal' || secSubLayout === 'two_columns') ||
-          (secSubLayout !== 'vertical' && questions.every(q => /^[\(\[]?[a-zA-Z0-9ivxlcdm]+[\)\]\.]/i.test((q.text || '').trim()) || (q.text || '').length < 45))
+        const secSubLayout = sec.subquestions_layout || sec.options_layout || 'horizontal';
+        const isExplicitTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(secSubLayout);
+        const isExplicitHoriz = ['horizontal', '1_row'].includes(secSubLayout);
+        const isExplicitVert = ['vertical', 'stacked'].includes(secSubLayout);
+        const hasOptionsAny = questions.some(q => q.options && q.options.length > 0);
+        const isMcqSec = String(sec.type || '').toLowerCase() === 'mcq' || hasOptionsAny;
+
+        const isHorizontalSubq = !isMcqSec && questions.length > 1 && !isExplicitVert && (
+          isExplicitTwoCol ||
+          (isExplicitHoriz && questions.length <= 4 && !questions.some(q => q.answer_lines || q.diagram_type)) ||
+          (questions.every(q => /^[\(\[]?[a-zA-Z0-9ivxlcdm]+[\)\]\.]/i.test((q.text || '').trim()) || (q.text || '').length < 45) && !questions.some(q => q.answer_lines || q.diagram_type))
         );
 
-        if (isHorizontalSubq && secSubLayout !== 'vertical') {
+        if (isHorizontalSubq) {
           // Render subquestions in grid
           const subGrid = document.createElement('div');
           subGrid.className = 'subq-horizontal-grid';
-          const numCols = secSubLayout === 'two_columns' ? 2 : questions.length;
+          const numCols = isExplicitTwoCol ? 2 : (isExplicitHoriz ? questions.length : Math.min(questions.length, 4));
           subGrid.style.display = 'grid';
           subGrid.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`;
           subGrid.style.gap = '14px';
@@ -398,7 +405,14 @@
             const qDiv = document.createElement('div');
             qDiv.style.fontSize = '12pt';
             qDiv.style.fontWeight = q.is_bold ? '700' : '500';
-            qDiv.innerHTML = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
+            let content = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
+            if (q.answer_lines) {
+              for (let l = 0; l < q.answer_lines; l++) {
+                const prefix = l === 0 ? (q.answer_prefix || 'Ans: ') : '&nbsp;&nbsp;&nbsp;&nbsp;';
+                content += `<div style="color: #94a3b8; font-size: 0.85rem; margin-top: 2px;">${prefix}_____________________________________</div>`;
+              }
+            }
+            qDiv.innerHTML = content;
             subGrid.appendChild(qDiv);
           });
 
@@ -412,15 +426,18 @@
             const formattedText = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
             let qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
             
-            if (sec.type === 'mcq' && q.options) {
-              const optLayout = q.options_layout || sec.options_layout || 'horizontal';
-              let optGridCols = `repeat(${q.options.length}, 1fr)`;
-              if (optLayout === 'two_columns') optGridCols = 'repeat(2, 1fr)';
-              else if (optLayout === 'vertical') optGridCols = '1fr';
+            const hasOpts = Array.isArray(q.options) && q.options.length > 0;
+            if (hasOpts || isMcqSec) {
+              const optLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'horizontal';
+              const isTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(optLayout);
+              const isVert = ['vertical', 'stacked', '1_col'].includes(optLayout);
+              const optGridCols = isTwoCol ? 'repeat(2, 1fr)' : (isVert ? '1fr' : `repeat(${(q.options && q.options.length) || 4}, 1fr)`);
 
-              qHtml += `<div style="display: grid; grid-template-columns: ${optGridCols}; gap: 10px; margin: 6px 0 10px 14px; font-size: 12pt;">
-                ${q.options.map(o => `<div>${typeof formatMathFractions === 'function' ? formatMathFractions(o) : o}</div>`).join('')}
-              </div>`;
+              if (hasOpts) {
+                qHtml += `<div style="display: grid; grid-template-columns: ${optGridCols}; gap: 10px; margin: 6px 0 10px 14px; font-size: 12pt;">
+                  ${q.options.map(o => `<div>${typeof formatMathFractions === 'function' ? formatMathFractions(o) : o}</div>`).join('')}
+                </div>`;
+              }
             } else if (sec.type === 'true_false') {
               qHtml = `<div style="display: flex; justify-content: space-between;"><span>${formattedText}</span> <span style="color: #94a3b8; font-weight: bold;">[ &nbsp; &nbsp; &nbsp; ]</span></div>`;
             }
