@@ -670,10 +670,15 @@ function updateQuestionLivePreview(sIdx, qIdx) {
   const q = paperData.sections[sIdx].questions[qIdx];
   const sec = paperData.sections[sIdx];
   
+  const effectiveLayout = q.options_layout || sec.options_layout || 'horizontal';
+  let optGridCols = `repeat(${q.options?.length || 4}, 1fr)`;
+  if (effectiveLayout === 'two_columns') optGridCols = 'repeat(2, 1fr)';
+  else if (effectiveLayout === 'vertical') optGridCols = '1fr';
+
   let html = `<div style="font-weight: 600;">${formatMathFractions(q.text || 'Question...')}</div>`;
   if (sec.type === 'mcq' && q.options) {
     html += `
-      <div class="math-options-grid">
+      <div class="math-options-grid" style="display: grid; grid-template-columns: ${optGridCols}; gap: 8px;">
         ${q.options.map(opt => `<div>${formatMathFractions(opt)}</div>`).join('')}
       </div>
     `;
@@ -815,6 +820,24 @@ function renderEditor() {
       </div>
     `;
 
+    // Section Options / Sub-questions Layout Selector
+    const secOptLayout = sec.options_layout || 'horizontal';
+    body.innerHTML += `
+      <div class="field-group" style="margin-bottom: 12px; background: #f8fafc; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <label class="field-label" style="margin: 0; font-weight: 700; color: #1e293b;">
+            <i class="fa-solid fa-table-columns" style="color: var(--primary-600);"></i> ${sec.type === 'mcq' ? 'MCQ Options Layout:' : 'Sub-Questions Layout:'}
+          </label>
+          <select class="input-control" style="width: auto; font-size: 0.82rem; padding: 3px 8px; font-weight: 600;" onchange="updateSectionOptionsLayout(${sIdx}, this.value)">
+            <option value="horizontal" ${secOptLayout === 'horizontal' ? 'selected' : ''}>Horizontal (1 Row - Side-by-side across page)</option>
+            <option value="two_columns" ${secOptLayout === 'two_columns' ? 'selected' : ''}>2 Columns (Side-by-Side / 2x2 Grid)</option>
+            <option value="vertical" ${secOptLayout === 'vertical' ? 'selected' : ''}>Vertical (Stacked - 1 per line)</option>
+          </select>
+        </div>
+        <span style="font-size: 0.76rem; color: #64748b;">Controls layout for 2, 3, or 4 options in docx, pdf & preview</span>
+      </div>
+    `;
+
     // Table Data Editor (e.g. Q-2 (B) Complete the following table)
     if (sec.table_data) {
       const tblDiv = document.createElement('div');
@@ -877,10 +900,15 @@ function renderEditor() {
       qRow.style.borderRadius = '6px';
       qRow.style.marginBottom = '10px';
 
+      const effectiveLayout = q.options_layout || sec.options_layout || 'horizontal';
+      let optGridCols = `repeat(${q.options?.length || 4}, 1fr)`;
+      if (effectiveLayout === 'two_columns') optGridCols = 'repeat(2, 1fr)';
+      else if (effectiveLayout === 'vertical') optGridCols = '1fr';
+
       let extraContent = '';
       if (sec.type === 'mcq' && q.options) {
         extraContent = `
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px;">
+          <div style="display: grid; grid-template-columns: ${optGridCols}; gap: 6px; margin-top: 8px;">
             ${q.options.map((opt, oIdx) => `
               <input type="text" class="input-control" style="font-size: 0.82rem; padding: 4px 6px;" value="${opt}" oninput="handleOptionInput(${sIdx}, ${qIdx}, ${oIdx}, this.value)">
             `).join('')}
@@ -899,7 +927,7 @@ function renderEditor() {
           <div style="font-weight: 600;">${formatMathFractions(q.text || 'Question...')}</div>
           ${qDiagImg}
           ${sec.type === 'mcq' && q.options ? `
-            <div class="math-options-grid">
+            <div class="math-options-grid" style="display: grid; grid-template-columns: ${optGridCols}; gap: 8px;">
               ${q.options.map(opt => `<div>${formatMathFractions(opt)}</div>`).join('')}
             </div>
           ` : ''}
@@ -912,7 +940,7 @@ function renderEditor() {
           <div style="flex: 1;">
             <textarea class="input-control" rows="1" style="width: 100%; font-family: monospace; font-size: 0.88rem;" oninput="handleQuestionTextInput(${sIdx}, ${qIdx}, this.value)">${q.text || ''}</textarea>
             
-            <div style="display: flex; justify-content: space-between; align-items: center; margin: 4px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin: 4px 0; flex-wrap: wrap; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #475569;">
                 <span><i class="fa-solid fa-shapes"></i> Question Figure:</span>
                 <select style="font-size: 0.76rem; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc;" onchange="updateQuestionDiagramType(${sIdx}, ${qIdx}, this.value)">
@@ -922,6 +950,17 @@ function renderEditor() {
                   <option value="pictograph" ${qDiag === 'pictograph' ? 'selected' : ''}>Pictograph Chart</option>
                 </select>
               </div>
+              ${sec.type === 'mcq' && q.options ? `
+              <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #475569;">
+                <span><i class="fa-solid fa-table-columns"></i> Layout:</span>
+                <select style="font-size: 0.76rem; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc; font-weight: 600;" onchange="updateQuestionOptionsLayout(${sIdx}, ${qIdx}, this.value)">
+                  <option value="" ${!q.options_layout ? 'selected' : ''}>Default (${secOptLayout === 'two_columns' ? '2 Cols' : (secOptLayout === 'vertical' ? 'Vertical' : 'Horizontal')})</option>
+                  <option value="horizontal" ${q.options_layout === 'horizontal' ? 'selected' : ''}>Horizontal (1 Row)</option>
+                  <option value="two_columns" ${q.options_layout === 'two_columns' ? 'selected' : ''}>2 Columns (Side-by-Side)</option>
+                  <option value="vertical" ${q.options_layout === 'vertical' ? 'selected' : ''}>Vertical (Stacked)</option>
+                </select>
+              </div>
+              ` : ''}
             </div>
 
             ${previewHtml}
@@ -967,6 +1006,26 @@ function updateSectionDiagramType(sIdx, val) {
 function updateSectionDiagramLayout(sIdx, val) {
   if (paperData && paperData.sections[sIdx]) {
     paperData.sections[sIdx].diagram_layout = val;
+    saveToLocal();
+    renderEditor();
+  }
+}
+
+function updateSectionOptionsLayout(sIdx, val) {
+  if (paperData && paperData.sections[sIdx]) {
+    paperData.sections[sIdx].options_layout = val;
+    saveToLocal();
+    renderEditor();
+  }
+}
+
+function updateQuestionOptionsLayout(sIdx, qIdx, val) {
+  if (paperData?.sections?.[sIdx]?.questions?.[qIdx]) {
+    if (val) {
+      paperData.sections[sIdx].questions[qIdx].options_layout = val;
+    } else {
+      delete paperData.sections[sIdx].questions[qIdx].options_layout;
+    }
     saveToLocal();
     renderEditor();
   }
@@ -1119,18 +1178,41 @@ function deleteSection(sIdx) {
 
 
 function exportDocx() {
-  syncFormToState();
-  if (!paperData) {
-    const local = localStorage.getItem('current_paper');
-    if (local) paperData = JSON.parse(local);
+  if (typeof syncFormToState === 'function') {
+    syncFormToState();
   }
   
+  // Prefer the freshest state in localStorage if available
+  const local = localStorage.getItem('current_paper');
+  if (local) {
+    try {
+      const parsed = JSON.parse(local);
+      if (parsed && Array.isArray(parsed.sections) && parsed.sections.length > 0) {
+        paperData = parsed;
+      }
+    } catch (e) {
+      console.error('Error reading current_paper from localStorage', e);
+    }
+  }
+
+  if (!paperData || !Array.isArray(paperData.sections) || paperData.sections.length === 0) {
+    showToast('No questions found to export. Please load or build an exam paper first.', 'error');
+    return;
+  }
+  
+  const btn = document.getElementById('btnExportDocx') || document.getElementById('btnPreviewDocx');
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating Word...';
+  }
+
   showToast('Generating formatted Word (.docx) document...', 'info');
 
   fetch('/api/generate-docx', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ paper: paperData || {} })
+    body: JSON.stringify({ paper: paperData })
   })
   .then(r => r.json())
   .then(data => {
@@ -1143,14 +1225,43 @@ function exportDocx() {
   })
   .catch(err => {
     showToast('Request failed: ' + err.message, 'error');
+  })
+  .finally(() => {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
   });
 }
 
 function exportPdf() {
-  syncFormToState();
-  if (!paperData) {
-    const local = localStorage.getItem('current_paper');
-    if (local) paperData = JSON.parse(local);
+  if (typeof syncFormToState === 'function') {
+    syncFormToState();
+  }
+
+  // Prefer the freshest state in localStorage if available
+  const local = localStorage.getItem('current_paper');
+  if (local) {
+    try {
+      const parsed = JSON.parse(local);
+      if (parsed && Array.isArray(parsed.sections) && parsed.sections.length > 0) {
+        paperData = parsed;
+      }
+    } catch (e) {
+      console.error('Error reading current_paper from localStorage', e);
+    }
+  }
+
+  if (!paperData || !Array.isArray(paperData.sections) || paperData.sections.length === 0) {
+    showToast('No questions found to export. Please load or build an exam paper first.', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btnExportPdf') || document.getElementById('btnPreviewPdf');
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF...';
   }
 
   showToast('Generating print-ready PDF...', 'info');
@@ -1158,7 +1269,7 @@ function exportPdf() {
   fetch('/api/generate-pdf', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ paper: paperData || {} })
+    body: JSON.stringify({ paper: paperData })
   })
   .then(r => r.json())
   .then(data => {
@@ -1171,5 +1282,24 @@ function exportPdf() {
   })
   .catch(err => {
     showToast('Request failed: ' + err.message, 'error');
+  })
+  .finally(() => {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
   });
 }
+
+// Auto-sync paper to localStorage whenever navigating or unloading
+window.addEventListener('beforeunload', () => {
+  if (typeof syncFormToState === 'function') {
+    saveToLocal();
+  }
+});
+
+window.addEventListener('pagehide', () => {
+  if (typeof syncFormToState === 'function') {
+    saveToLocal();
+  }
+});

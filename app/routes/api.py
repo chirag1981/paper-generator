@@ -182,8 +182,10 @@ def download_direct(file_type):
     if file_type == 'pdf':
         docx_path = os.path.join(export_dir, 'Std_6_Maths_1st_Semester_Exam.docx')
         pdf_path = os.path.join(export_dir, 'Std_6_Maths_1st_Semester_Exam.pdf')
-        build_docx_paper(paper_data, docx_path, temp_dir=upload_dir)
-        convert_docx_to_pdf(docx_path, pdf_path)
+        try:
+            convert_docx_to_pdf(docx_path, pdf_path)
+        except Exception as err:
+            current_app.logger.warning(f"Sample PDF conversion error: {err}")
         if os.path.exists(pdf_path):
             return send_from_directory(export_dir, 'Std_6_Maths_1st_Semester_Exam.pdf', as_attachment=True)
         return send_from_directory(export_dir, 'Std_6_Maths_1st_Semester_Exam.docx', as_attachment=True)

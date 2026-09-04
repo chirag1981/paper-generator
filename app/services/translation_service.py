@@ -6,10 +6,21 @@ from typing import Dict, Any, Optional
 from app.utils import get_active_gemini_api_key
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
     HAS_GENAI = True
+    _USE_MODERN_GENAI = True
 except ImportError:
-    HAS_GENAI = False
+    try:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            import google.generativeai as genai
+        HAS_GENAI = True
+        _USE_MODERN_GENAI = False
+    except ImportError:
+        HAS_GENAI = False
+        _USE_MODERN_GENAI = False
 
 LANGUAGE_NAMES = {
     'en': 'English',
@@ -39,7 +50,6 @@ def translate_paper_structure(paper_data: Dict[str, Any], target_lang: str, api_
 
 
 def _translate_with_gemini(paper_data: Dict[str, Any], target_lang: str, lang_name: str, api_key: str) -> Dict[str, Any]:
-    genai.configure(api_key=api_key)
 
     # Try fast flash models first
     env_model = os.environ.get('GEMINI_MODEL', '').strip()
@@ -70,9 +80,23 @@ Input JSON:
 
     for m_name in model_names:
         try:
-            model = genai.GenerativeModel(m_name)
-            response = model.generate_content(prompt)
-            raw_text = response.text.strip()
+            if _USE_MODERN_GENAI:
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model=m_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.1,
+                        max_output_tokens=8192,
+                        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+                    )
+                )
+                raw_text = (response.text or "").strip()
+            else:
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel(m_name)
+                response = model.generate_content(prompt)
+                raw_text = (response.text or "").strip()
             
             # Strip markdown fences if present
             if raw_text.startswith("```json"):

@@ -1,16 +1,48 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Caches and logs
+.pytest_cache/
+.ruff_cache/
+*.log
+
+# Environments and Secrets
+.env
+.env.local
+*.pem
+*.key
+*.cert
 venv/
 .venv/
 env/
-.env
+ENV/
+
+# Database files
+*.db
+*.sqlite3
 instance/
-.pytest_cache/
-*.log
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+~$*
+*.tmp
+
+# Application uploads and exports
 uploads/*
 !uploads/.gitkeep
 exports/*
 !exports/.gitkeep
-~$*
-*.tmp
+
+# Root generated artifacts, temporary test files & raw scans
+*.docx
+*.pdf
+*.png
+*.jpg
+*.jpeg
+1/
+test_*

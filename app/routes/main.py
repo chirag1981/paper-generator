@@ -23,4 +23,8 @@ def serve_upload(filename):
 @main_bp.route('/exports/<path:filename>')
 def serve_export(filename):
     export_dir = current_app.config['EXPORT_FOLDER']
-    return send_from_directory(export_dir, filename, as_attachment=True)
+    response = send_from_directory(export_dir, filename, as_attachment=True)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response

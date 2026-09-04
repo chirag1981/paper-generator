@@ -18,12 +18,12 @@
     <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">
       <i class="fa-solid fa-print"></i> Print Paper
     </button>
-    <a href="/api/download-direct/docx" class="btn btn-accent btn-sm" download="Std_6_Maths_1st_Semester_Exam.docx">
+    <button type="button" class="btn btn-accent btn-sm" id="btnPreviewDocx" onclick="exportDocx()">
       <i class="fa-solid fa-file-word"></i> Download Word (.docx)
-    </a>
-    <a href="/api/download-direct/pdf" class="btn btn-primary btn-sm" download="Std_6_Maths_1st_Semester_Exam.pdf">
+    </button>
+    <button type="button" class="btn btn-primary btn-sm" id="btnPreviewPdf" onclick="exportPdf()">
       <i class="fa-solid fa-file-pdf"></i> Download PDF
-    </a>
+    </button>
   </div>
 </div>
 
@@ -378,13 +378,20 @@
           secDiv.appendChild(t);
         }
 
-        const isHorizontalSubq = sec.type !== 'mcq' && questions.length > 1 && questions.every(q => /^[a-d]\)/i.test((q.text || '').trim()) || (q.text || '').length < 45) && !questions.some(q => q.answer_lines || q.diagram_type);
+        const secSubLayout = sec.subquestions_layout || sec.options_layout;
+        const isHorizontalSubq = sec.type !== 'mcq' && questions.length > 1 && !questions.some(q => q.answer_lines || q.diagram_type) && (
+          (secSubLayout === 'horizontal' || secSubLayout === 'two_columns') ||
+          (secSubLayout !== 'vertical' && questions.every(q => /^[\(\[]?[a-zA-Z0-9ivxlcdm]+[\)\]\.]/i.test((q.text || '').trim()) || (q.text || '').length < 45))
+        );
 
-        if (isHorizontalSubq) {
-          // Render subquestions side-by-side in horizontal grid
+        if (isHorizontalSubq && secSubLayout !== 'vertical') {
+          // Render subquestions in grid
           const subGrid = document.createElement('div');
           subGrid.className = 'subq-horizontal-grid';
-          subGrid.style.gridTemplateColumns = `repeat(${questions.length}, 1fr)`;
+          const numCols = secSubLayout === 'two_columns' ? 2 : questions.length;
+          subGrid.style.display = 'grid';
+          subGrid.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`;
+          subGrid.style.gap = '14px';
           subGrid.style.margin = '8px 0 12px';
 
           questions.forEach(q => {
@@ -406,7 +413,12 @@
             let qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
             
             if (sec.type === 'mcq' && q.options) {
-              qHtml += `<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 10px 14px; font-size: 12pt;">
+              const optLayout = q.options_layout || sec.options_layout || 'horizontal';
+              let optGridCols = `repeat(${q.options.length}, 1fr)`;
+              if (optLayout === 'two_columns') optGridCols = 'repeat(2, 1fr)';
+              else if (optLayout === 'vertical') optGridCols = '1fr';
+
+              qHtml += `<div style="display: grid; grid-template-columns: ${optGridCols}; gap: 10px; margin: 6px 0 10px 14px; font-size: 12pt;">
                 ${q.options.map(o => `<div>${typeof formatMathFractions === 'function' ? formatMathFractions(o) : o}</div>`).join('')}
               </div>`;
             } else if (sec.type === 'true_false') {

@@ -5,11 +5,23 @@ from typing import List, Dict, Any, Optional
 from app.utils import get_active_gemini_api_key
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
     from PIL import Image
     HAS_VISION_AI = True
+    _USE_MODERN_GENAI = True
 except ImportError:
-    HAS_VISION_AI = False
+    try:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            import google.generativeai as genai
+        from PIL import Image
+        HAS_VISION_AI = True
+        _USE_MODERN_GENAI = False
+    except ImportError:
+        HAS_VISION_AI = False
+        _USE_MODERN_GENAI = False
 
 
 def extract_paper_from_images(
@@ -26,7 +38,7 @@ def extract_paper_from_images(
         raise ValueError("Gemini API Key is required for Multilingual OCR. Please provide your API Key or set GEMINI_API_KEY in .env.")
 
     if not HAS_VISION_AI:
-        raise ImportError("google-generativeai or Pillow is not installed.")
+        raise ImportError("google-genai or Pillow is not installed.")
 
     import io
     valid_images = []
@@ -52,8 +64,6 @@ def extract_paper_from_images(
 
     if not valid_images:
         raise FileNotFoundError("No valid image or PDF pages found to perform OCR.")
-
-    genai.configure(api_key=key)
 
     lang_desc = {
         'en': 'English',
@@ -131,16 +141,30 @@ CRITICAL RULES FOR FIGURES & DIAGRAMS (DO NOT OUTPUT TEXT PLACEHOLDERS):
 
     for m_name in model_names:
         try:
-            model = genai.GenerativeModel(m_name)
             content_payload = [prompt] + valid_images
-            response = model.generate_content(
-                content_payload,
-                generation_config={
-                    "temperature": 0.1,
-                    "max_output_tokens": 8192
-                }
-            )
-            raw_text = response.text.strip()
+            if _USE_MODERN_GENAI:
+                client = genai.Client(api_key=key)
+                response = client.models.generate_content(
+                    model=m_name,
+                    contents=content_payload,
+                    config=types.GenerateContentConfig(
+                        temperature=0.1,
+                        max_output_tokens=8192,
+                        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+                    )
+                )
+                raw_text = (response.text or "").strip()
+            else:
+                genai.configure(api_key=key)
+                model = genai.GenerativeModel(m_name)
+                response = model.generate_content(
+                    content_payload,
+                    generation_config={
+                        "temperature": 0.1,
+                        "max_output_tokens": 8192
+                    }
+                )
+                raw_text = (response.text or "").strip()
 
             if raw_text.startswith("```json"):
                 raw_text = raw_text[7:]
