@@ -695,9 +695,11 @@ def _render_table_data(doc, sec: dict):
             add_formatted_math_text(p, str(val), font_size=DOCX_BODY_FONT_SIZE)
 
 
-def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizontal', temp_dir: str = None):
+def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizontal', temp_dir: str = None, sec_title: str = ''):
     """Renders short sub-questions in equal-width borderless columns (1 row or 2 columns side-by-side)."""
     is_two_col = layout in ['two_columns', '2_columns', '2col', 'two-columns']
+    shape_diagrams = ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']
+
     if is_two_col:
         num_cols = 2
         num_rows = (len(questions) + 1) // 2
@@ -717,8 +719,67 @@ def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizon
             cell.width = col_width
             set_cell_margins(cell, top=10, bottom=16, left=15, right=15)
             q_diag = q.get('diagram_type')
+            q_text = q.get('text', '')
 
-            if q_diag in ['clock', 'clock_blank']:
+            if not q_diag:
+                q_lower = (q_text or '').lower()
+                for s in shape_diagrams:
+                    if s in q_lower and ('shape' in q_lower or '[' in q_lower or 'shape' in (sec_title or '').lower()):
+                        q_diag = s
+                        break
+
+            if q_diag in shape_diagrams:
+                shape_path = os.path.join(temp_dir, f"q_{q_idx}_{q_diag}.png") if temp_dir else f"static/img/shape_{q_diag}.png"
+                static_shape = os.path.join('static', 'img', f"shape_{q_diag}.png")
+                if os.path.exists(static_shape):
+                    shape_path = static_shape
+                elif not os.path.exists(shape_path):
+                    _safe_generate_diagram(q_diag, shape_path)
+
+                p_sub = cell.paragraphs[0]
+                p_sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                fmt_paragraph(p_sub, before=Pt(2), after=DOCX_QUESTION_SPACE_AFTER if not q.get('answer_lines') else Pt(2), spacing=1.0)
+
+                prefix_match = QUESTION_PREFIX_REGEX.match(q_text)
+                num_prefix = prefix_match.group(0).strip() if prefix_match else f"({q_idx+1})"
+
+                r_num = p_sub.add_run(f"{num_prefix}  ")
+                set_run_font(r_num, 'Nirmala UI')
+                r_num.font.size = DOCX_BODY_FONT_SIZE
+                r_num.font.bold = True
+                r_num.font.color.rgb = PRIMARY_COLOR
+
+                if os.path.exists(shape_path):
+                    p_sub.add_run().add_picture(shape_path, width=Inches(1.15))
+
+                rem_text = QUESTION_PREFIX_REGEX.sub('', q_text).strip()
+                clean_rem = re.sub(r'\[\s*(?:cylinder|pyramid|circle|sphere|cone|cube|cuboid)[^\]]*\]', '', rem_text, flags=re.IGNORECASE).strip()
+                meaningful_text = re.sub(r'[=\._\s\-]+', '', clean_rem)
+
+                if meaningful_text:
+                    r_txt = p_sub.add_run(f"  {clean_rem}")
+                    set_run_font(r_txt, 'Nirmala UI')
+                    r_txt.font.size = DOCX_BODY_FONT_SIZE
+                    r_txt.font.bold = True
+                else:
+                    has_eq = '=' in rem_text or not rem_text
+                    eq_str = "=  " if has_eq else ""
+                    r_line = p_sub.add_run(f"  {eq_str}____________________")
+                    set_run_font(r_line, 'Nirmala UI')
+                    r_line.font.size = DOCX_BODY_FONT_SIZE
+                    r_line.font.bold = True
+                    r_line.font.color.rgb = RGBColor(71, 85, 105)
+
+                if q.get('answer_lines') and q['answer_lines'] > 1:
+                    for l_idx in range(1, q['answer_lines']):
+                        p_ans = cell.add_paragraph()
+                        fmt_paragraph(p_ans, before=Pt(1), after=Pt(2), spacing=1.0)
+                        r_ans = p_ans.add_run('___________________________')
+                        set_run_font(r_ans, 'Nirmala UI')
+                        r_ans.font.size = Pt(9.5)
+                        r_ans.font.color.rgb = RGBColor(100, 116, 139)
+
+            elif q_diag in ['clock', 'clock_blank']:
                 clock_path = os.path.join(temp_dir, f"q_{q_idx}_{q_diag}.png") if temp_dir else f"static/img/{q_diag}.png"
                 if not os.path.exists(clock_path):
                     _safe_generate_diagram(q_diag, clock_path)
@@ -728,28 +789,46 @@ def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizon
                 if os.path.exists(clock_path):
                     p_clock.add_run().add_picture(clock_path, width=Inches(1.5))
                 p_sub = cell.add_paragraph()
+                p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER if not q.get('answer_lines') else Pt(2), spacing=DOCX_LINE_SPACING)
+                add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
+                if q.get('answer_lines'):
+                    tot_l = q['answer_lines']
+                    q_t = q.get('text', '')
+                    if '____' not in q_t and '.......' not in q_t:
+                        r_bl = p_sub.add_run('   ______________________')
+                        set_run_font(r_bl, 'Nirmala UI')
+                        r_bl.font.size = Pt(9.5)
+                        r_bl.font.color.rgb = RGBColor(100, 116, 139)
+                    for l_idx in range(1, tot_l):
+                        p_ans = cell.add_paragraph()
+                        ans_after = DOCX_QUESTION_SPACE_AFTER if l_idx == tot_l - 1 else Pt(1)
+                        fmt_paragraph(p_ans, before=Pt(1), after=ans_after, spacing=1.0)
+                        r_line = p_ans.add_run('___________________________')
+                        set_run_font(r_line, 'Nirmala UI')
+                        r_line.font.size = Pt(9.5)
+                        r_line.font.color.rgb = RGBColor(100, 116, 139)
             else:
                 p_sub = cell.paragraphs[0]
-
-            p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER if q_diag in ['clock', 'clock_blank'] else WD_ALIGN_PARAGRAPH.LEFT
-            fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER if not q.get('answer_lines') else Pt(2), spacing=DOCX_LINE_SPACING)
-            add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
-            if q.get('answer_lines'):
-                tot_l = q['answer_lines']
-                q_t = q.get('text', '')
-                if '____' not in q_t and '.......' not in q_t:
-                    r_bl = p_sub.add_run('   ______________________')
-                    set_run_font(r_bl, 'Nirmala UI')
-                    r_bl.font.size = Pt(9.5)
-                    r_bl.font.color.rgb = RGBColor(100, 116, 139)
-                for l_idx in range(1, tot_l):
-                    p_ans = cell.add_paragraph()
-                    ans_after = DOCX_QUESTION_SPACE_AFTER if l_idx == tot_l - 1 else Pt(1)
-                    fmt_paragraph(p_ans, before=Pt(1), after=ans_after, spacing=1.0)
-                    r_line = p_ans.add_run('___________________________')
-                    set_run_font(r_line, 'Nirmala UI')
-                    r_line.font.size = Pt(9.5)
-                    r_line.font.color.rgb = RGBColor(100, 116, 139)
+                p_sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER if not q.get('answer_lines') else Pt(2), spacing=DOCX_LINE_SPACING)
+                add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
+                if q.get('answer_lines'):
+                    tot_l = q['answer_lines']
+                    q_t = q.get('text', '')
+                    if '____' not in q_t and '.......' not in q_t:
+                        r_bl = p_sub.add_run('   ______________________')
+                        set_run_font(r_bl, 'Nirmala UI')
+                        r_bl.font.size = Pt(9.5)
+                        r_bl.font.color.rgb = RGBColor(100, 116, 139)
+                    for l_idx in range(1, tot_l):
+                        p_ans = cell.add_paragraph()
+                        ans_after = DOCX_QUESTION_SPACE_AFTER if l_idx == tot_l - 1 else Pt(1)
+                        fmt_paragraph(p_ans, before=Pt(1), after=ans_after, spacing=1.0)
+                        r_line = p_ans.add_run('___________________________')
+                        set_run_font(r_line, 'Nirmala UI')
+                        r_line.font.size = Pt(9.5)
+                        r_line.font.color.rgb = RGBColor(100, 116, 139)
     else:
         sub_tbl = doc.add_table(rows=1, cols=len(questions))
         sub_tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
@@ -765,8 +844,59 @@ def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizon
             cell.width = col_width
             set_cell_margins(cell, top=15, bottom=25, left=15, right=15)
             q_diag = q.get('diagram_type')
+            q_text = q.get('text', '')
 
-            if q_diag in ['clock', 'clock_blank']:
+            if not q_diag:
+                q_lower = (q_text or '').lower()
+                for s in shape_diagrams:
+                    if s in q_lower and ('shape' in q_lower or '[' in q_lower or 'shape' in (sec_title or '').lower()):
+                        q_diag = s
+                        break
+
+            if q_diag in shape_diagrams:
+                shape_path = os.path.join(temp_dir, f"q_{q_idx}_{q_diag}.png") if temp_dir else f"static/img/shape_{q_diag}.png"
+                static_shape = os.path.join('static', 'img', f"shape_{q_diag}.png")
+                if os.path.exists(static_shape):
+                    shape_path = static_shape
+                elif not os.path.exists(shape_path):
+                    _safe_generate_diagram(q_diag, shape_path)
+
+                p_sub = cell.paragraphs[0]
+                p_sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                fmt_paragraph(p_sub, before=Pt(2), after=DOCX_QUESTION_SPACE_AFTER, spacing=1.0)
+
+                prefix_match = QUESTION_PREFIX_REGEX.match(q_text)
+                num_prefix = prefix_match.group(0).strip() if prefix_match else f"({q_idx+1})"
+
+                r_num = p_sub.add_run(f"{num_prefix}  ")
+                set_run_font(r_num, 'Nirmala UI')
+                r_num.font.size = DOCX_BODY_FONT_SIZE
+                r_num.font.bold = True
+                r_num.font.color.rgb = PRIMARY_COLOR
+
+                img_w = Inches(0.95) if len(questions) >= 3 else Inches(1.15)
+                if os.path.exists(shape_path):
+                    p_sub.add_run().add_picture(shape_path, width=img_w)
+
+                rem_text = QUESTION_PREFIX_REGEX.sub('', q_text).strip()
+                clean_rem = re.sub(r'\[\s*(?:cylinder|pyramid|circle|sphere|cone|cube|cuboid)[^\]]*\]', '', rem_text, flags=re.IGNORECASE).strip()
+                meaningful_text = re.sub(r'[=\._\s\-]+', '', clean_rem)
+
+                if meaningful_text:
+                    r_txt = p_sub.add_run(f"  {clean_rem}")
+                    set_run_font(r_txt, 'Nirmala UI')
+                    r_txt.font.size = DOCX_BODY_FONT_SIZE
+                    r_txt.font.bold = True
+                else:
+                    has_eq = '=' in rem_text or not rem_text
+                    eq_str = "=  " if has_eq else ""
+                    r_line = p_sub.add_run(f"  {eq_str}______________")
+                    set_run_font(r_line, 'Nirmala UI')
+                    r_line.font.size = DOCX_BODY_FONT_SIZE
+                    r_line.font.bold = True
+                    r_line.font.color.rgb = RGBColor(71, 85, 105)
+
+            elif q_diag in ['clock', 'clock_blank']:
                 clock_path = os.path.join(temp_dir, f"q_{q_idx}_{q_diag}.png") if temp_dir else f"static/img/{q_diag}.png"
                 if not os.path.exists(clock_path):
                     _safe_generate_diagram(q_diag, clock_path)
@@ -776,12 +906,14 @@ def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizon
                 if os.path.exists(clock_path):
                     p_clock.add_run().add_picture(clock_path, width=Inches(1.5))
                 p_sub = cell.add_paragraph()
+                p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER, spacing=DOCX_LINE_SPACING)
+                add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
             else:
                 p_sub = cell.paragraphs[0]
-
-            p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER if q_diag in ['clock', 'clock_blank'] else WD_ALIGN_PARAGRAPH.LEFT
-            fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER, spacing=DOCX_LINE_SPACING)
-            add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
+                p_sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER, spacing=DOCX_LINE_SPACING)
+                add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
 
 
 def _render_mcq_question(doc, q: dict, q_text: str, q_idx: int = 0, default_layout: str = 'horizontal'):
@@ -905,7 +1037,10 @@ def _render_general_question(doc, q: dict, q_text: str, temp_dir: str, q_idx: in
     if is_shape:
         # Render geometric shape question side-by-side: (1) [Shape Image] = ________________________
         img_path = os.path.join(temp_dir, f"q_{q_idx}_{diag_type}.png") if temp_dir else f"static/img/shape_{diag_type}.png"
-        if not os.path.exists(img_path):
+        static_shape = os.path.join('static', 'img', f"shape_{diag_type}.png")
+        if os.path.exists(static_shape):
+            img_path = static_shape
+        elif not os.path.exists(img_path):
             _safe_generate_diagram(diag_type, img_path)
 
         tbl_shape = doc.add_table(rows=1, cols=2)
@@ -1176,7 +1311,7 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
 
             if is_subq_grid:
                 grid_layout = 'two_columns' if is_explicit_two_col else 'horizontal'
-                _render_horizontal_subquestions(doc, questions, layout=grid_layout, temp_dir=temp_dir)
+                _render_horizontal_subquestions(doc, questions, layout=grid_layout, temp_dir=temp_dir, sec_title=title)
             else:
                 for q_idx, q in enumerate(questions):
                     q_text = q.get('text', '')

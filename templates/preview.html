@@ -417,7 +417,7 @@
           subGrid.style.gap = '14px';
           subGrid.style.margin = '8px 0 12px';
 
-          questions.forEach(q => {
+          questions.forEach((q, qIdx) => {
             const qDiv = document.createElement('div');
             qDiv.style.fontSize = '12pt';
             qDiv.style.fontWeight = q.is_bold ? '700' : '500';
@@ -432,12 +432,54 @@
                 content += `<div style="border-bottom: 1.5px solid #94a3b8; width: 100%; height: 1.5em; margin-top: 4px;"></div>`;
               }
             }
-            if (['clock', 'clock_blank'].includes(q.diagram_type)) {
+
+            const isShape = ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].includes(q.diagram_type) ||
+              ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].some(s => (q.text || '').toLowerCase().includes(s) && ((q.text || '').includes('[') || (sec.title || '').toLowerCase().includes('shape')));
+
+            if (isShape) {
+              let detectedShape = q.diagram_type;
+              if (!detectedShape || !['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].includes(detectedShape)) {
+                for (const s of ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']) {
+                  if ((q.text || '').toLowerCase().includes(s)) {
+                    detectedShape = s;
+                    break;
+                  }
+                }
+              }
+              const shapeSrc = `/static/img/shape_${detectedShape || 'cylinder'}.png`;
+              let cleanText = (q.text || '').replace(/\[\s*(?:cylinder|pyramid|circle|sphere|cone|cube|cuboid)[^\]]*\]/gi, '').trim();
+              const prefixMatch = cleanText.match(/^\s*[\(\[]?([a-zA-Z]|\d+|[ivxlcdmIVXLCDM]+)[\)\]\.]\s*/);
+              const numPrefix = prefixMatch ? prefixMatch[0].trim() : `(${qIdx+1})`;
+              const afterPrefix = cleanText.replace(/^\s*[\(\[]?([a-zA-Z]|\d+|[ivxlcdmIVXLCDM]+)[\)\]\.]\s*/, '').trim();
+              const hasEq = cleanText.includes('=') || !afterPrefix;
+              const hasCustomText = afterPrefix.replace(/[=\._\s\-]+/g, '').trim().length > 0;
+
+              content = `
+                <div style="display: flex; align-items: center; gap: 10px; margin: 4px 0;">
+                  <span style="font-weight: 700; font-size: 12pt; min-width: 26px;">${numPrefix}</span>
+                  <img src="${shapeSrc}" style="max-height: 52px; max-width: 85px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px;">
+                  ${hasCustomText ? `<span style="font-size: 11pt; font-weight: 600;">${afterPrefix}</span>` : `
+                    <span style="font-size: 12pt; font-weight: 600;">${hasEq ? '=' : ''}</span>
+                    <span style="flex: 1; border-bottom: 1.5px solid #000; height: 1.2em; min-width: 70px; margin-bottom: 2px;"></span>
+                  `}
+                </div>
+              `;
+            } else if (['clock', 'clock_blank'].includes(q.diagram_type)) {
               content = `
                 <div style="text-align: center; margin-bottom: 6px;">
                   <img src="/static/img/clock_blank.png" style="width: 130px; height: 130px; display: inline-block; object-fit: contain;">
                 </div>
                 <div style="text-align: center; font-size: 11pt; font-weight: 700;">${content}</div>
+              `;
+            } else if (q.diagram_type === 'zigzag') {
+              content = `
+                <div style="margin-bottom: 4px; text-align: center;"><img src="/static/img/figure_q3a3.png" style="max-height: 50px; display: inline-block;"></div>
+                <div>${content}</div>
+              `;
+            } else if (q.diagram_type === 'geometry_lines') {
+              content = `
+                <div style="margin-bottom: 4px; text-align: center;"><img src="/static/img/figure_q3c.png" style="max-height: 55px; display: inline-block;"></div>
+                <div>${content}</div>
               `;
             }
             qDiv.innerHTML = content;
