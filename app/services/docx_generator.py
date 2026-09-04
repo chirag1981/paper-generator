@@ -604,7 +604,13 @@ def _render_side_by_side_section(doc, sec: dict, questions: list, temp_dir: str)
 
         if q.get('answer_lines'):
             tot_lines = q.get('answer_lines', 1)
-            for line_idx in range(tot_lines):
+            q_txt = q.get('text', '')
+            if '____' not in q_txt and '.......' not in q_txt:
+                r_bl = p_q.add_run('   ______________________')
+                set_run_font(r_bl, 'Nirmala UI')
+                r_bl.font.size = Pt(9.5)
+                r_bl.font.color.rgb = RGBColor(100, 116, 139)
+            for line_idx in range(1, tot_lines):
                 p_ans = cell_opts.add_paragraph()
                 ans_after = DOCX_QUESTION_SPACE_AFTER if line_idx == tot_lines - 1 else Pt(2)
                 fmt_paragraph(p_ans, before=Pt(1), after=ans_after, spacing=1.0, keep_with_next=(line_idx < tot_lines - 1))
@@ -699,15 +705,17 @@ def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizon
             fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER if not q.get('answer_lines') else Pt(2), spacing=DOCX_LINE_SPACING)
             add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
             if q.get('answer_lines'):
-                for l_idx in range(q['answer_lines']):
+                tot_l = q['answer_lines']
+                q_t = q.get('text', '')
+                if '____' not in q_t and '.......' not in q_t:
+                    r_bl = p_sub.add_run('   ______________________')
+                    set_run_font(r_bl, 'Nirmala UI')
+                    r_bl.font.size = Pt(9.5)
+                    r_bl.font.color.rgb = RGBColor(100, 116, 139)
+                for l_idx in range(1, tot_l):
                     p_ans = cell.add_paragraph()
-                    ans_after = DOCX_QUESTION_SPACE_AFTER if l_idx == q['answer_lines'] - 1 else Pt(1)
+                    ans_after = DOCX_QUESTION_SPACE_AFTER if l_idx == tot_l - 1 else Pt(1)
                     fmt_paragraph(p_ans, before=Pt(1), after=ans_after, spacing=1.0)
-                    prefix = q.get('answer_prefix', 'Ans: ') if l_idx == 0 else '      '
-                    r_p = p_ans.add_run(prefix)
-                    set_run_font(r_p, 'Nirmala UI')
-                    r_p.font.size = Pt(9.5)
-                    r_p.font.bold = (l_idx == 0)
                     r_line = p_ans.add_run('___________________________')
                     set_run_font(r_line, 'Nirmala UI')
                     r_line.font.size = Pt(9.5)
@@ -883,17 +891,21 @@ def _render_general_question(doc, q: dict, q_text: str, temp_dir: str, q_idx: in
 
     if q.get('answer_lines'):
         total_lines = q.get('answer_lines', 1)
-        for line_idx in range(total_lines):
+        has_inline_blank = ('____' in q_text) or ('.......' in q_text)
+
+        # Place blank line directly next to the question on line 1
+        if not has_inline_blank:
+            r_blank = p.add_run('   _________________________________________')
+            set_run_font(r_blank, 'Nirmala UI')
+            r_blank.font.size = Pt(9.5)
+            r_blank.font.color.rgb = RGBColor(100, 116, 139)
+
+        # For additional answer lines (if answer_lines > 1), add clean blank lines below without Ans:
+        for line_idx in range(1, total_lines):
             p_ans = doc.add_paragraph()
             ans_after = DOCX_QUESTION_SPACE_AFTER if line_idx == total_lines - 1 else Pt(3)
             fmt_paragraph(p_ans, before=Pt(2), after=ans_after, spacing=1.0, keep_with_next=(line_idx < total_lines - 1))
-            prefix = q.get('answer_prefix', 'Ans: ') if line_idx == 0 else '          '
-            r_pfx = p_ans.add_run(prefix)
-            set_run_font(r_pfx, 'Nirmala UI')
-            r_pfx.font.size = DOCX_BODY_FONT_SIZE
-            r_pfx.font.bold = (line_idx == 0)
-            r_pfx.font.color.rgb = PRIMARY_COLOR
-
+            apply_question_indent(p_ans, 0.3)
             r_line = p_ans.add_run('____________________________________________________________________')
             set_run_font(r_line, 'Nirmala UI')
             r_line.font.size = Pt(9.5)

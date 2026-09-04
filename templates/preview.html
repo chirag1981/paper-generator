@@ -284,12 +284,18 @@
           qDiv.style.fontSize = '12pt';
           qDiv.style.fontWeight = q.is_bold ? '700' : '500';
           const formattedText = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
-          let qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
-          if (q.answer_lines) {
-            for (let l = 0; l < q.answer_lines; l++) {
-              const prefix = l === 0 ? (q.answer_prefix || 'Ans: ') : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
-              qHtml += `<div style="color: #94a3b8; font-size: 10pt; margin-top: 2px;">${prefix}_____________________________________</div>`;
+          const hasInlineBlank = String(q.text || '').includes('____') || String(q.text || '').includes('.......');
+          let qHtml = '';
+          if (q.answer_lines && !hasInlineBlank) {
+            qHtml = `<div style="display: flex; align-items: flex-end; gap: 8px; width: 100%;">
+              <span style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</span>
+              <span style="flex: 1; border-bottom: 1.5px solid #94a3b8; min-width: 60px; height: 1em; margin-bottom: 2px;"></span>
+            </div>`;
+            for (let l = 1; l < q.answer_lines; l++) {
+              qHtml += `<div style="border-bottom: 1.5px solid #94a3b8; width: 100%; height: 1.5em; margin-top: 4px;"></div>`;
             }
+          } else {
+            qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
           }
           qDiv.innerHTML = qHtml;
           leftCol.appendChild(qDiv);
@@ -406,10 +412,14 @@
             qDiv.style.fontSize = '12pt';
             qDiv.style.fontWeight = q.is_bold ? '700' : '500';
             let content = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
-            if (q.answer_lines) {
-              for (let l = 0; l < q.answer_lines; l++) {
-                const prefix = l === 0 ? (q.answer_prefix || 'Ans: ') : '&nbsp;&nbsp;&nbsp;&nbsp;';
-                content += `<div style="color: #94a3b8; font-size: 0.85rem; margin-top: 2px;">${prefix}_____________________________________</div>`;
+            const hasInlineBlank = String(q.text || '').includes('____') || String(q.text || '').includes('.......');
+            if (q.answer_lines && !hasInlineBlank) {
+              content = `<div style="display: flex; align-items: flex-end; gap: 8px; width: 100%;">
+                <span>${content}</span>
+                <span style="flex: 1; border-bottom: 1.5px solid #94a3b8; min-width: 60px; height: 1em; margin-bottom: 2px;"></span>
+              </div>`;
+              for (let l = 1; l < q.answer_lines; l++) {
+                content += `<div style="border-bottom: 1.5px solid #94a3b8; width: 100%; height: 1.5em; margin-top: 4px;"></div>`;
               }
             }
             qDiv.innerHTML = content;
@@ -424,9 +434,22 @@
             qDiv.style.fontSize = '12pt';
             
             const formattedText = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
-            let qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
-            
+            const hasInlineBlank = String(q.text || '').includes('____') || String(q.text || '').includes('.......');
             const hasOpts = Array.isArray(q.options) && q.options.length > 0;
+
+            let qHtml = '';
+            if (q.answer_lines && !hasInlineBlank && !hasOpts) {
+              qHtml = `<div style="display: flex; align-items: flex-end; gap: 8px; width: 100%;">
+                <span style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</span>
+                <span style="flex: 1; border-bottom: 1.5px solid #94a3b8; min-width: 100px; height: 1em; margin-bottom: 2px;"></span>
+              </div>`;
+              for (let l = 1; l < q.answer_lines; l++) {
+                qHtml += `<div style="border-bottom: 1.5px solid #94a3b8; width: 100%; height: 1.6em; margin-top: 6px;"></div>`;
+              }
+            } else {
+              qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
+            }
+            
             if (hasOpts || isMcqSec) {
               const optLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'horizontal';
               const isTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(optLayout);
@@ -454,13 +477,6 @@
               qHtml += `<table style="width: 100%; border-collapse: collapse; margin: 8px 0; text-align: center;">
                 <tr>${q.supercell_cells.map(c => `<td style="border: 1px solid #334155; padding: 6px; font-weight: bold; background: #f8fafc;">${c}</td>`).join('')}</tr>
               </table>`;
-            }
-
-            if (q.answer_lines) {
-              for (let l = 0; l < q.answer_lines; l++) {
-                const prefix = l === 0 ? (q.answer_prefix || 'Ans: ') : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
-                qHtml += `<div style="color: #94a3b8; font-size: 0.85rem; margin-top: 2px;">${prefix}_______________________________________________________________________________</div>`;
-              }
             }
 
             qDiv.innerHTML = qHtml;

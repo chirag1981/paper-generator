@@ -112,8 +112,7 @@ REQUIRED JSON SCHEMA:
           "options": ["(a) ...", "(b) ..."],
           "diagram_type": "optional question diagram: zigzag | geometry_lines | pictograph",
           "is_bold": true,
-          "answer_lines": 2,
-          "answer_prefix": "optional string e.g. Ans: "
+          "answer_lines": 2
         }}
       ]
     }}
@@ -237,6 +236,10 @@ def sanitize_and_fix_paper_diagrams(paper: Dict[str, Any]) -> Dict[str, Any]:
                 q["diagram_type"] = "zigzag"
             elif any(term in q_text for term in ["five points", "two lines", "four rays", "a line segment"]) and "diagram_type" not in sec:
                 sec["diagram_type"] = "geometry_lines"
+
+            # Strip out any 'Ans:' or generic answer prefixes
+            if q.get("answer_prefix", "").strip().lower() in ["ans:", "ans.", "ans", "answer:", "answer"]:
+                q.pop("answer_prefix", None)
 
     return paper
 
