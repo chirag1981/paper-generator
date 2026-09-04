@@ -1,5 +1,4 @@
 import os
-import re
 from werkzeug.utils import secure_filename
 
 def sanitize_uppercase(text: str) -> str:

@@ -1,5 +1,4 @@
-import os
-from flask import Blueprint, render_template, current_app, send_from_directory, abort
+from flask import Blueprint, render_template, current_app, send_from_directory
 
 main_bp = Blueprint('main', __name__)
 

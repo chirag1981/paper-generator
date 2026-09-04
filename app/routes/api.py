@@ -1,9 +1,8 @@
 import os
-import json
 import time
 from flask import Blueprint, request, jsonify, current_app, send_from_directory, session
 from werkzeug.utils import secure_filename
-from app.utils import allowed_file, get_safe_filename, sanitize_uppercase, get_active_gemini_api_key, convert_pdf_to_images
+from app.utils import allowed_file, get_safe_filename, get_active_gemini_api_key, convert_pdf_to_images
 from app.services.ocr_service import get_sample_std6_maths_paper, extract_paper_from_images
 from app.services.translation_service import translate_paper_structure, LANGUAGE_NAMES
 from app.services.docx_generator import build_docx_paper
