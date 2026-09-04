@@ -32,11 +32,11 @@ DOCX_SUBTITLE_FONT_SIZE = Pt(12)
 
 # Spacing standard tokens (Print-Ready Exam Paper Standards)
 DOCX_LINE_SPACING = 1.15                        # Line spacing within multi-line questions (1.15-1.5)
-DOCX_QUESTION_SPACE_AFTER = Pt(9)               # Consistent space after each question (8-10pt)
-DOCX_QUESTION_SPACING_BEFORE = Pt(9)            # Question space before (resolves NameError & provides consistency)
-DOCX_SECTION_SPACE_BEFORE = Pt(15)              # More space before new section heading (Q:1, Q:2, etc.)
-DOCX_SECTION_SPACE_BEFORE_FIRST = Pt(8)         # Space before first section heading after header table
-DOCX_SECTION_SPACE_AFTER = Pt(4)                # Space after section heading
+DOCX_QUESTION_SPACE_AFTER = Pt(6)               # Consistent space after each question (tightened to prevent single-problem page spill)
+DOCX_QUESTION_SPACING_BEFORE = Pt(4)            # Question space before (tightened to fit neatly into balanced pages)
+DOCX_SECTION_SPACE_BEFORE = Pt(12)              # Space before new section heading (Q:1, Q:2, etc.)
+DOCX_SECTION_SPACE_BEFORE_FIRST = Pt(6)         # Space before first section heading after header table
+DOCX_SECTION_SPACE_AFTER = Pt(3)                # Space after section heading
 
 PAGE_CONTENT_WIDTH_INCHES = 7.2
 PAGE_CONTENT_WIDTH = Inches(PAGE_CONTENT_WIDTH_INCHES)
@@ -278,6 +278,8 @@ def extract_question_summary(paper_data: dict) -> tuple:
         marks_str = str(sec.get('marks', '0')).translate(indic_to_eng)
         m_nums = re.findall(r'\d+', marks_str)
         marks_val = int(m_nums[0]) if m_nums else 0
+        if marks_val == 0 and sec.get('questions'):
+            marks_val = len(sec['questions'])
 
         clean_title = title.translate(indic_to_eng)
         match = re.search(r'(?:Q|Que|Question|Sec|Section|પ્ર|પ્રશ્ન|प्रश्न)[\.\s\-:_]*(\d+)', clean_title, re.IGNORECASE)
@@ -511,6 +513,9 @@ def _build_assessment_table(doc, q_summary: list, total_marks: str):
 
 def _add_section_heading(doc, title_text: str, marks_text: str, is_first: bool = False):
     """Renders a section heading with right-aligned marks (e.g. [5], [10])."""
+    title_clean = (title_text or '').strip()
+    marks_clean = (marks_text or '').strip()
+
     tbl = doc.add_table(rows=1, cols=2)
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
     tbl.autofit = False
@@ -522,32 +527,33 @@ def _add_section_heading(doc, title_text: str, marks_text: str, is_first: bool =
     set_no_borders(tbl)
 
     for c in tbl.rows[0].cells:
-        set_cell_margins(c, top=8, bottom=8, left=15, right=15)
+        set_cell_margins(c, top=6, bottom=6, left=15, right=15)
 
     space_before = DOCX_SECTION_SPACE_BEFORE_FIRST if is_first else DOCX_SECTION_SPACE_BEFORE
 
-    p0 = tbl.rows[0].cells[0].paragraphs[0]
+    cell0 = tbl.rows[0].cells[0]
+    p0 = cell0.paragraphs[0]
     fmt_paragraph(p0, before=space_before, after=DOCX_SECTION_SPACE_AFTER, spacing=1.0, keep_with_next=True)
-    r0 = p0.add_run(title_text)
+    r0 = p0.add_run(title_clean)
     set_run_font(r0, 'Nirmala UI')
     r0.font.size = DOCX_SECTION_HEADING_FONT_SIZE
     r0.font.bold = True
     r0.font.color.rgb = PRIMARY_COLOR
 
-    p1 = tbl.rows[0].cells[1].paragraphs[0]
+    cell1 = tbl.rows[0].cells[1]
+    p1 = cell1.paragraphs[0]
     p1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     fmt_paragraph(p1, before=space_before, after=DOCX_SECTION_SPACE_AFTER, spacing=1.0, keep_with_next=True)
 
-    clean_marks = marks_text
-    if clean_marks:
-        clean_marks = clean_marks.strip('[]() ')
-        clean_marks = f'[{clean_marks}]'
-
-    r1 = p1.add_run(clean_marks)
-    set_run_font(r1, 'Nirmala UI')
-    r1.font.size = DOCX_SECTION_HEADING_FONT_SIZE
-    r1.font.bold = True
-    r1.font.color.rgb = PRIMARY_COLOR
+    if marks_clean:
+        clean_marks = marks_clean.strip('[]() ')
+        if clean_marks:
+            clean_marks = f'[{clean_marks}]'
+            r1 = p1.add_run(clean_marks)
+            set_run_font(r1, 'Nirmala UI')
+            r1.font.size = DOCX_SECTION_HEADING_FONT_SIZE
+            r1.font.bold = True
+            r1.font.color.rgb = PRIMARY_COLOR
 
 
 def _render_options_box(doc, options_text: str):
@@ -1260,6 +1266,8 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
 
         title = sec.get('title', f'Section {s_idx+1}')
         marks = sec.get('marks', '')
+        if not marks and sec.get('questions'):
+            marks = f"[{len(sec['questions'])}]"
         _add_section_heading(doc, title, marks, is_first=(s_idx == 0))
 
         if sec.get('options_box'):

@@ -315,6 +315,16 @@ def sanitize_and_fix_paper_diagrams(paper: Dict[str, Any]) -> Dict[str, Any]:
             if q.get("answer_prefix", "").strip().lower() in ["ans:", "ans.", "ans", "answer:", "answer"]:
                 q.pop("answer_prefix", None)
 
+        # Auto-heal missing section marks from question count so total marks are never understated
+        sec_marks = str(sec.get("marks") or "").strip()
+        if not sec_marks or sec_marks in ["", "0", "[0]", "(0)"]:
+            q_cnt = len(sec.get("questions", []))
+            if q_cnt > 0:
+                sec["marks"] = f"[{q_cnt}]"
+
+        if sec.get("title"):
+            sec["title"] = sec["title"].strip()
+
     return paper
 
 
