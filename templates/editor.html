@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+  <div>
+    <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--slate-900);">
+      <i class="fa-solid fa-sliders" style="color: var(--primary-600); margin-right: 6px;"></i> Exam Paper Live Builder
+    </h2>
+    <p style="color: var(--slate-500); font-size: 0.9rem;">
+      Review handwritten pages on the left, edit &amp; convert questions in English, Gujarati, or Hindi on the right.
+    </p>
+  </div>
+  
+  <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+    <!-- Language Translation Dropdown -->
+    <div style="position: relative; display: inline-block;">
+      <button type="button" class="btn btn-secondary btn-sm" id="btnLangDropdown" onclick="toggleLangMenu()" style="background: white; border: 1px solid var(--primary-600); color: var(--primary-700); font-weight: 600;">
+        <i class="fa-solid fa-language"></i> <span id="currentLangLabel">Convert Language</span> <i class="fa-solid fa-chevron-down" style="font-size: 0.75rem; margin-left: 4px;"></i>
+      </button>
+      <div id="langMenu" style="display: none; position: absolute; top: 110%; right: 0; background: white; border: 1px solid var(--slate-300); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); z-index: 100; min-width: 210px; padding: 6px 0;">
+        <a href="javascript:void(0)" onclick="convertLanguage('en')" style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; color: var(--slate-800); text-decoration: none; font-size: 0.88rem;">
+          <span>🇬🇧</span> <strong>English</strong>
+        </a>
+        <a href="javascript:void(0)" onclick="convertLanguage('gu')" style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; color: var(--slate-800); text-decoration: none; font-size: 0.88rem;">
+          <span>🇮🇳</span> <strong>ગુજરાતી (Gujarati)</strong>
+        </a>
+        <a href="javascript:void(0)" onclick="convertLanguage('hi')" style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; color: var(--slate-800); text-decoration: none; font-size: 0.88rem;">
+          <span>🇮🇳</span> <strong>हिन्दी (Hindi)</strong>
+        </a>
+      </div>
+    </div>
+
+    <!-- API Key Settings Button -->
+    <button type="button" class="btn btn-secondary btn-sm" onclick="openApiKeyModal()" title="Configure Gemini AI API Key">
+      <i class="fa-solid fa-key" style="color: #f59e0b;"></i> <span id="apiKeyBtnText">AI Key</span>
+    </button>
+
+    <!-- Reset & Clear Dropdown -->
+    <div style="position: relative; display: inline-block;">
+      <button type="button" class="btn btn-secondary btn-sm" id="btnResetDropdown" onclick="toggleResetMenu()" title="Reset or clear questions">
+        <i class="fa-solid fa-rotate-left"></i> Reset <i class="fa-solid fa-chevron-down" style="font-size: 0.75rem; margin-left: 2px;"></i>
+      </button>
+      <div id="resetMenu" style="display: none; position: absolute; top: 110%; right: 0; background: white; border: 1px solid var(--slate-300); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); z-index: 100; min-width: 230px; padding: 6px 0;">
+        <a href="javascript:void(0)" onclick="clearPaperToBlank()" style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; color: #dc2626; text-decoration: none; font-size: 0.88rem;">
+          <i class="fa-solid fa-eraser"></i> <strong>Clear Paper (Blank)</strong>
+        </a>
+        <a href="javascript:void(0)" onclick="resetToSamplePaper()" style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; color: var(--slate-800); text-decoration: none; font-size: 0.88rem;">
+          <i class="fa-solid fa-book-open"></i> <strong>Load Preloaded Sample</strong>
+        </a>
+      </div>
+    </div>
+    <a href="{{ url_for('main.preview') }}" class="btn btn-secondary btn-sm" onclick="saveToLocal()">
+      <i class="fa-solid fa-eye"></i> Printable Preview
+    </a>
+    <button type="button" class="btn btn-primary btn-sm" id="btnExportDocx" onclick="exportDocx()">
+      <i class="fa-solid fa-file-word"></i> Export Word (.docx)
+    </button>
+    <button type="button" class="btn btn-accent btn-sm" id="btnExportPdf" onclick="exportPdf()">
+      <i class="fa-solid fa-file-pdf"></i> Export PDF
+    </button>
+  </div>
+</div>
+
+<div class="editor-layout">
+  <!-- Left Pane: Handwritten Image Viewer + OCR Trigger -->
+  <div class="pane">
+    <div class="pane-header" style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+      <div class="pane-title">
+        <i class="fa-regular fa-image"></i> Handwritten Source Images
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+        <!-- Upload Input & Button directly in Editor -->
+        <input type="file" id="editorFileInput" multiple accept="image/*" style="display: none;" onchange="handleEditorFileUpload(this.files)">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById('editorFileInput').click()" style="background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.25); font-weight: 600; padding: 4px 9px;" title="Upload new handwritten exam images (resets old questions)">
+          <i class="fa-solid fa-cloud-arrow-up"></i> Upload
+        </button>
+
+        <select id="ocrLangSelect" style="background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.25); border-radius: 4px; padding: 3px 6px; font-size: 0.8rem; outline: none;">
+          <option value="auto" style="color: #0f172a;">Auto (Mixed)</option>
+          <option value="gu" style="color: #0f172a;">ગુજરાતી (Gujarati)</option>
+          <option value="hi" style="color: #0f172a;">हिन्दी (Hindi)</option>
+          <option value="en" style="color: #0f172a;">English</option>
+        </select>
+
+        <!-- Scan All Pages in Batch -->
+        <button class="btn btn-sm" id="btnRunOcrAll" style="background: linear-gradient(135deg, #06b6d4, #2563eb); color: white; border: none; font-weight: 700; padding: 4px 10px;" onclick="triggerAiScan(false)" title="Automatically scan and transcribe ALL uploaded pages simultaneously into questions">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Scan All (<span id="scanAllCount">5</span>)
+        </button>
+
+        <!-- Scan Only Currently Viewed Page -->
+        <button class="btn btn-sm btn-secondary" id="btnRunOcrCurrent" style="background: rgba(255,255,255,0.12); color: white; border: 1px solid rgba(255,255,255,0.25); font-weight: 600; padding: 4px 8px;" onclick="triggerAiScan(true)" title="Scan only the currently active page in the viewer">
+          <i class="fa-regular fa-file-image"></i> Scan Page
+        </button>
+
+        <span id="pageCounter" style="font-size: 0.85rem; color: #94a3b8; margin-left: 2px;">Page 1 of 5</span>
+      </div>
+    </div>
+
+    <!-- Image Strip -->
+    <div class="image-strip" id="imageStrip">
+      <!-- Dynamically filled with thumbnails -->
+    </div>
+
+    <!-- Main Zoomable Viewer -->
+    <div class="viewer-canvas" id="viewerCanvas" style="position: relative;">
+      <img id="mainViewerImg" src="" alt="Handwritten Paper Page">
+      
+      <!-- OCR Loading Overlay -->
+      <div id="ocrLoadingOverlay" style="display: none; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.78); backdrop-filter: blur(4px); z-index: 50; flex-direction: column; align-items: center; justify-content: center; color: white;">
+        <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 2.5rem; color: #38bdf8; margin-bottom: 14px;"></i>
+        <h4 id="ocrLoadingTitle" style="font-size: 1.15rem; font-weight: 700; margin-bottom: 6px;">AI Scanning &amp; Transcribing...</h4>
+        <p id="ocrLoadingSubtitle" style="font-size: 0.85rem; color: #94a3b8; max-width: 320px; text-align: center;">Extracting Gujarati, Hindi &amp; English questions and mathematical symbols...</p>
+      </div>
+
+      <div class="viewer-controls">
+        <button class="btn btn-secondary btn-sm" onclick="zoomImage(0.15)" title="Zoom In"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+        <button class="btn btn-secondary btn-sm" onclick="zoomImage(-0.15)" title="Zoom Out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+        <button class="btn btn-secondary btn-sm" onclick="resetZoom()" title="Reset Zoom"><i class="fa-solid fa-arrows-rotate"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Pane: Structured Live Question Editor -->
+  <div class="pane">
+    <div class="pane-header">
+      <div class="pane-title">
+        <i class="fa-solid fa-pen-to-square"></i> Paper Structure &amp; Questions
+      </div>
+      <button class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none;" onclick="addNewSection()">
+        <i class="fa-solid fa-plus"></i> Add Section
+      </button>
+    </div>
+
+    <div class="pane-body">
+      <!-- Exam Header / Metadata Box -->
+      <div style="background: white; border: 1px solid var(--slate-300); border-radius: var(--radius-md); padding: 16px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--slate-700); text-transform: uppercase; margin-bottom: 12px;">
+          <i class="fa-solid fa-heading" style="color: var(--primary-600); margin-right: 6px;"></i> Exam Header Information
+        </h4>
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label class="field-label">Exam Title</label>
+            <input type="text" id="metaExamTitle" class="input-control" placeholder="e.g. 1st Semester Examination – 2026" onchange="saveToLocal()">
+          </div>
+          <div>
+            <label class="field-label">Subject</label>
+            <input type="text" id="metaSubject" class="input-control" placeholder="e.g. Mathematics" onchange="saveToLocal()">
+          </div>
+          <div>
+            <label class="field-label">Standard</label>
+            <input type="text" id="metaStandard" class="input-control" placeholder="e.g. Std. 6th" onchange="saveToLocal()">
+          </div>
+          <div>
+            <label class="field-label">Total Marks</label>
+            <input type="text" id="metaMarks" class="input-control" placeholder="e.g. 60" onchange="saveToLocal()">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+          <div>
+            <label class="field-label">Date (Optional)</label>
+            <input type="text" id="metaDate" class="input-control" placeholder="e.g. 15-09-2026 or blank" onchange="saveToLocal()">
+          </div>
+          <div>
+            <label class="field-label">Day (Optional)</label>
+            <input type="text" id="metaDay" class="input-control" placeholder="e.g. Monday or blank" onchange="saveToLocal()">
+          </div>
+          <div>
+            <label class="field-label">Roll No (Optional)</label>
+            <input type="text" id="metaRollNo" class="input-control" placeholder="Leave blank for student" onchange="saveToLocal()">
+          </div>
+        </div>
+
+        <!-- Live Evaluation Table Preview -->
+        <div style="background: var(--slate-50); border: 1px solid var(--slate-200); border-radius: var(--radius-sm); padding: 12px 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <span style="font-size: 0.82rem; font-weight: 700; color: var(--slate-700); text-transform: uppercase;">
+                <i class="fa-solid fa-table-cells" style="color: var(--primary-600); margin-right: 4px;"></i> Question Assessment Marks Table
+              </span>
+              <span style="font-size: 0.75rem; color: var(--slate-500); margin-left: 6px;">(Edit column names &amp; marks directly in the table)</span>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 2px 8px;" onclick="addCustomQuestionColumn()">
+                <i class="fa-solid fa-plus"></i> Add Question
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 2px 8px;" onclick="autoSyncMarksTableFromSections()" title="Auto-detect and sync questions &amp; marks from all sections below">
+                <i class="fa-solid fa-rotate"></i> Auto-Sync
+              </button>
+            </div>
+          </div>
+          <div id="editorMarksTableContainer" style="overflow-x: auto;">
+            <!-- Rendered by editor.js -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Sections Container -->
+      <div id="sectionsContainer">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- API Key Modal -->
+<div id="apiKeyModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); backdrop-filter: blur(3px); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+  <div style="background: white; border-radius: var(--radius-lg); width: 100%; max-width: 480px; padding: 24px; box-shadow: var(--shadow-xl);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--slate-900); display: flex; align-items: center; gap: 8px;">
+        <i class="fa-solid fa-key" style="color: #f59e0b;"></i> Google Gemini API Key
+      </h3>
+      <button type="button" onclick="closeApiKeyModal()" style="background: none; border: none; font-size: 1.1rem; color: var(--slate-400); cursor: pointer;">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <p style="font-size: 0.88rem; color: var(--slate-600); margin-bottom: 14px; line-height: 1.45;">
+      Enter your free Google Gemini API Key to enable handwritten Multilingual OCR (Gujarati, Hindi, English) and 1-Click exam translation.
+    </p>
+    <div style="margin-bottom: 18px;">
+      <input type="password" id="inputApiKey" placeholder="AIzaSy..." class="input-control" style="font-family: monospace; font-size: 0.95rem;">
+      <span style="font-size: 0.75rem; color: var(--slate-400); margin-top: 4px; display: block;">
+        Don't have a key? Get one free at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--primary-600);">Google AI Studio</a>.
+      </span>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closeApiKeyModal()">Cancel</button>
+      <button type="button" class="btn btn-primary btn-sm" onclick="saveApiKey()">
+        <i class="fa-solid fa-floppy-disk"></i> Save Key
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/viewer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/editor.js') }}"></script>
+{% endblock %}

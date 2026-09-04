@@ -1,0 +1,26 @@
+<header class="navbar">
+  <a href="{{ url_for('main.index') }}" class="brand">
+    <div class="brand-icon">
+      <i class="fa-solid fa-file-pen"></i>
+    </div>
+    <span>ExamPaper<span style="color: var(--primary-600);">AI</span></span>
+  </a>
+
+  <nav class="nav-links">
+    <a href="{{ url_for('main.index') }}" class="nav-item {% if request.path == '/' %}active{% endif %}">
+      <i class="fa-solid fa-cloud-arrow-up"></i> Upload
+    </a>
+    <a href="{{ url_for('main.editor') }}" class="nav-item {% if request.path == '/editor' %}active{% endif %}">
+      <i class="fa-solid fa-sliders"></i> Live Editor
+    </a>
+    <a href="{{ url_for('main.preview') }}" class="nav-item {% if request.path == '/preview' %}active{% endif %}">
+      <i class="fa-solid fa-eye"></i> Printable Preview
+    </a>
+  </nav>
+
+  <div>
+    <a href="{{ url_for('main.editor') }}" class="btn btn-primary btn-sm">
+      <i class="fa-solid fa-wand-magic-sparkles"></i> Open Builder
+    </a>
+  </div>
+</header>

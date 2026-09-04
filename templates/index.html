@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="hero">
+  <div class="hero-badge">
+    <i class="fa-solid fa-sparkles"></i> AI Multilingual Exam Digitizer (English • ગુજરાતી • हिन्दी)
+  </div>
+  <h1 class="hero-title">
+    Scan Handwritten Notes &amp; <span>Convert to Any Language</span>
+  </h1>
+  <p class="hero-subtitle">
+    Upload photos of handwritten or printed exam question papers in <strong>Gujarati, Hindi, or English</strong>.
+    Our Multimodal Vision AI scans, structures, translates, and exports publication-ready Microsoft Word (.docx) &amp; PDF files.
+  </p>
+</div>
+
+<!-- Upload Options & Drag-and-Drop Zone -->
+<div class="dropzone-card" id="dropzone" style="position: relative;">
+  <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+  
+  <!-- Language Selector Bar -->
+  <div style="display: inline-flex; align-items: center; gap: 8px; background: var(--slate-100); border: 1px solid var(--slate-300); border-radius: 20px; padding: 4px 14px; margin-bottom: 18px;">
+    <i class="fa-solid fa-language" style="color: var(--primary-600); font-size: 1.1rem;"></i>
+    <span style="font-size: 0.85rem; font-weight: 600; color: var(--slate-700);">Paper Language:</span>
+    <select id="uploadLangSelect" style="background: transparent; border: none; font-size: 0.85rem; font-weight: 700; color: var(--slate-900); cursor: pointer; outline: none;">
+      <option value="auto">🌐 Auto-Detect (Mixed / Any)</option>
+      <option value="gu">🇮🇳 Gujarati (ગુજરાતી)</option>
+      <option value="hi">🇮🇳 Hindi (हिन्दी)</option>
+      <option value="en">🇬🇧 English</option>
+    </select>
+  </div>
+
+  <div class="dropzone-icon">
+    <i class="fa-solid fa-cloud-arrow-up"></i>
+  </div>
+  <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--slate-900); margin-bottom: 8px;">
+    Drop your handwritten exam pages here
+  </h3>
+  <p style="color: var(--slate-500); font-size: 0.95rem; margin-bottom: 20px;">
+    Supports JPG, PNG, WEBP images (Single or multi-page exams)
+  </p>
+  
+  <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+    <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+      <i class="fa-solid fa-folder-open"></i> Browse &amp; Scan Images
+    </button>
+    <a href="{{ url_for('main.editor') }}" class="btn btn-secondary">
+      <i class="fa-solid fa-file-lines"></i> Open Preloaded Std. 6 Maths Exam
+    </a>
+  </div>
+
+  <div id="uploadProgress" style="display: none; margin-top: 24px;">
+    <div style="height: 6px; background: var(--slate-200); border-radius: 4px; overflow: hidden;">
+      <div id="progressBar" style="width: 0%; height: 100%; background: var(--primary-600); transition: width 0.3s;">
+      </div>
+    </div>
+    <p id="uploadStatusText" style="font-size: 0.85rem; color: var(--slate-600); margin-top: 8px;">Uploading &amp; processing...</p>
+  </div>
+</div>
+
+<!-- Features Grid -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; max-width: 1000px; margin: 40px auto 0;">
+  <div style="background: white; padding: 24px; border-radius: var(--radius-lg); border: 1px solid var(--slate-200); box-shadow: var(--shadow-sm);">
+    <div style="width: 44px; height: 44px; background: var(--primary-50); color: var(--primary-600); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; margin-bottom: 16px;">
+      <i class="fa-solid fa-eye"></i>
+    </div>
+    <h4 style="font-size: 1.05rem; font-weight: 700; color: var(--slate-900); margin-bottom: 6px;">Multilingual Handwriting OCR</h4>
+    <p style="color: var(--slate-600); font-size: 0.9rem;">
+      Accurately transcribes complex Gujarati, Hindi Devanagari, and English handwritten question papers into structured sections.
+    </p>
+  </div>
+
+  <div style="background: white; padding: 24px; border-radius: var(--radius-lg); border: 1px solid var(--slate-200); box-shadow: var(--shadow-sm);">
+    <div style="width: 44px; height: 44px; background: var(--accent-50); color: var(--accent-600); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; margin-bottom: 16px;">
+      <i class="fa-solid fa-language"></i>
+    </div>
+    <h4 style="font-size: 1.05rem; font-weight: 700; color: var(--slate-900); margin-bottom: 6px;">1-Click Language Conversion</h4>
+    <p style="color: var(--slate-600); font-size: 0.9rem;">
+      Seamlessly convert any question paper between <strong>English ↔ Gujarati (ગુજરાતી) ↔ Hindi (हिन्दी)</strong> with full preservation of math equations.
+    </p>
+  </div>
+
+  <div style="background: white; padding: 24px; border-radius: var(--radius-lg); border: 1px solid var(--slate-200); box-shadow: var(--shadow-sm);">
+    <div style="width: 44px; height: 44px; background: #fef3c7; color: #b45309; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; margin-bottom: 16px;">
+      <i class="fa-solid fa-file-word"></i>
+    </div>
+    <h4 style="font-size: 1.05rem; font-weight: 700; color: var(--slate-900); margin-bottom: 6px;">Indic Typography DOCX/PDF</h4>
+    <p style="color: var(--slate-600); font-size: 0.9rem;">
+      Generates beautiful Word documents with specialized Indic fonts (Nirmala UI) ensuring conjuncts and matras print cleanly.
+    </p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/uploader.js') }}"></script>
+{% endblock %}
