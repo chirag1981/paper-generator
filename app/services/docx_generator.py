@@ -313,104 +313,105 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
     )
     tblPr_meta.append(borders_none)
 
-    # 5. Merged Assessment & Signatures Layout Table
-    num_q_cols = len(q_summary)
-    total_cols = num_q_cols + 5  # Question, Q-1..Q-N, Total, Blank, Sig Label, Sig Box
-    
-    assessment_table = doc.add_table(rows=3, cols=total_cols)
-    assessment_table.alignment = WD_TABLE_ALIGNMENT.LEFT
-    assessment_table.autofit = False
-    set_all_cell_borders(assessment_table, color='000000', sz='4')
+    # 5. Merged Assessment & Signatures Layout Table (Optional)
+    if paper_data.get('show_marks_table', True) is not False and not paper_data.get('hide_marks_table', False):
+        num_q_cols = len(q_summary)
+        total_cols = num_q_cols + 5  # Question, Q-1..Q-N, Total, Blank, Sig Label, Sig Box
+        
+        assessment_table = doc.add_table(rows=3, cols=total_cols)
+        assessment_table.alignment = WD_TABLE_ALIGNMENT.LEFT
+        assessment_table.autofit = False
+        set_all_cell_borders(assessment_table, color='000000', sz='4')
 
-    col_w_question = Inches(1.05)
-    col_w_total = Inches(0.6)
-    col_w_blank = Inches(0.35)
-    col_w_sig_lbl = Inches(1.1)
-    col_w_sig_box = Inches(1.25)
-    
-    fixed_width = 1.05 + 0.6 + 0.35 + 1.1 + 1.25  # 4.35 inches
-    avail_for_q = max(0.45 * num_q_cols, 7.2 - fixed_width)
-    col_w_q = Inches(avail_for_q / max(1, num_q_cols))
+        col_w_question = Inches(1.05)
+        col_w_total = Inches(0.6)
+        col_w_blank = Inches(0.35)
+        col_w_sig_lbl = Inches(1.1)
+        col_w_sig_box = Inches(1.25)
+        
+        fixed_width = 1.05 + 0.6 + 0.35 + 1.1 + 1.25  # 4.35 inches
+        avail_for_q = max(0.45 * num_q_cols, 7.2 - fixed_width)
+        col_w_q = Inches(avail_for_q / max(1, num_q_cols))
 
-    col_widths = [col_w_question] + [col_w_q] * num_q_cols + [col_w_total, col_w_blank, col_w_sig_lbl, col_w_sig_box]
+        col_widths = [col_w_question] + [col_w_q] * num_q_cols + [col_w_total, col_w_blank, col_w_sig_lbl, col_w_sig_box]
 
-    for idx, col in enumerate(assessment_table.columns):
-        col.width = col_widths[idx]
+        for idx, col in enumerate(assessment_table.columns):
+            col.width = col_widths[idx]
 
-    for r_idx in range(3):
-        for c_idx in range(total_cols):
-            cell = assessment_table.rows[r_idx].cells[c_idx]
-            cell.width = col_widths[c_idx]
-            set_cell_margins(cell, top=35, bottom=35, left=35, right=35)
+        for r_idx in range(3):
+            for c_idx in range(total_cols):
+                cell = assessment_table.rows[r_idx].cells[c_idx]
+                cell.width = col_widths[c_idx]
+                set_cell_margins(cell, top=35, bottom=35, left=35, right=35)
 
-    blank_col_idx = num_q_cols + 2
-    sig_lbl_col_idx = num_q_cols + 3
-    sig_box_col_idx = num_q_cols + 4
-    total_col_idx = num_q_cols + 1
+        blank_col_idx = num_q_cols + 2
+        sig_lbl_col_idx = num_q_cols + 3
+        sig_box_col_idx = num_q_cols + 4
+        total_col_idx = num_q_cols + 1
 
-    # Merge the blank column vertically across rows 0, 1, 2
-    merged_blank_cell = assessment_table.rows[0].cells[blank_col_idx].merge(assessment_table.rows[2].cells[blank_col_idx])
-    merged_blank_cell.width = col_w_blank
-    set_cell_margins(merged_blank_cell, top=35, bottom=35, left=15, right=15)
+        # Merge the blank column vertically across rows 0, 1, 2
+        merged_blank_cell = assessment_table.rows[0].cells[blank_col_idx].merge(assessment_table.rows[2].cells[blank_col_idx])
+        merged_blank_cell.width = col_w_blank
+        set_cell_margins(merged_blank_cell, top=35, bottom=35, left=15, right=15)
 
-    # Row 0: "Question", Questions, "Total", [Blank], "Teacher's Sign", [Sig Box]
-    p0 = assessment_table.rows[0].cells[0].paragraphs[0]
-    p0.paragraph_format.space_after = Pt(0)
-    r = p0.add_run('Question')
-    r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
-
-    for i, q_item in enumerate(q_summary):
-        p = assessment_table.rows[0].cells[i+1].paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_after = Pt(0)
-        r = p.add_run(q_item['name'])
+        # Row 0: "Question", Questions, "Total", [Blank], "Teacher's Sign", [Sig Box]
+        p0 = assessment_table.rows[0].cells[0].paragraphs[0]
+        p0.paragraph_format.space_after = Pt(0)
+        r = p0.add_run('Question')
         r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
 
-    p_tot_hdr = assessment_table.rows[0].cells[total_col_idx].paragraphs[0]
-    p_tot_hdr.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_tot_hdr.paragraph_format.space_after = Pt(0)
-    r = p_tot_hdr.add_run('Total')
-    r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
+        for i, q_item in enumerate(q_summary):
+            p = assessment_table.rows[0].cells[i+1].paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_after = Pt(0)
+            r = p.add_run(q_item['name'])
+            r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
 
-    p_sig0 = assessment_table.rows[0].cells[sig_lbl_col_idx].paragraphs[0]
-    p_sig0.paragraph_format.space_after = Pt(0)
-    r = p_sig0.add_run("Teacher's Sign")
-    r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
-
-    # Row 1: "Obtain Marks", blanks, blanks, [Blank], "Supe. Sign", [Sig Box]
-    p1 = assessment_table.rows[1].cells[0].paragraphs[0]
-    p1.paragraph_format.space_after = Pt(0)
-    r = p1.add_run('Obtain Marks')
-    r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
-
-    p_sig1 = assessment_table.rows[1].cells[sig_lbl_col_idx].paragraphs[0]
-    p_sig1.paragraph_format.space_after = Pt(0)
-    r = p_sig1.add_run("Supe. Sign")
-    r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
-
-    # Row 2: "Marks", values, total, [Blank], "Rechk. Sign", [Sig Box]
-    p2 = assessment_table.rows[2].cells[0].paragraphs[0]
-    p2.paragraph_format.space_after = Pt(0)
-    r = p2.add_run('Marks')
-    r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
-
-    for i, q_item in enumerate(q_summary):
-        p = assessment_table.rows[2].cells[i+1].paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_after = Pt(0)
-        r = p.add_run(str(q_item['marks']))
+        p_tot_hdr = assessment_table.rows[0].cells[total_col_idx].paragraphs[0]
+        p_tot_hdr.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_tot_hdr.paragraph_format.space_after = Pt(0)
+        r = p_tot_hdr.add_run('Total')
         r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
 
-    p_tot_val = assessment_table.rows[2].cells[total_col_idx].paragraphs[0]
-    p_tot_val.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_tot_val.paragraph_format.space_after = Pt(0)
-    r = p_tot_val.add_run(str(total_marks))
-    r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
+        p_sig0 = assessment_table.rows[0].cells[sig_lbl_col_idx].paragraphs[0]
+        p_sig0.paragraph_format.space_after = Pt(0)
+        r = p_sig0.add_run("Teacher's Sign")
+        r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
 
-    p_sig2 = assessment_table.rows[2].cells[sig_lbl_col_idx].paragraphs[0]
-    p_sig2.paragraph_format.space_after = Pt(0)
-    r = p_sig2.add_run("Rechk. Sign")
-    r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
+        # Row 1: "Obtain Marks", blanks, blanks, [Blank], "Supe. Sign", [Sig Box]
+        p1 = assessment_table.rows[1].cells[0].paragraphs[0]
+        p1.paragraph_format.space_after = Pt(0)
+        r = p1.add_run('Obtain Marks')
+        r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
+
+        p_sig1 = assessment_table.rows[1].cells[sig_lbl_col_idx].paragraphs[0]
+        p_sig1.paragraph_format.space_after = Pt(0)
+        r = p_sig1.add_run("Supe. Sign")
+        r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
+
+        # Row 2: "Marks", values, total, [Blank], "Rechk. Sign", [Sig Box]
+        p2 = assessment_table.rows[2].cells[0].paragraphs[0]
+        p2.paragraph_format.space_after = Pt(0)
+        r = p2.add_run('Marks')
+        r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
+
+        for i, q_item in enumerate(q_summary):
+            p = assessment_table.rows[2].cells[i+1].paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_after = Pt(0)
+            r = p.add_run(str(q_item['marks']))
+            r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
+
+        p_tot_val = assessment_table.rows[2].cells[total_col_idx].paragraphs[0]
+        p_tot_val.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_tot_val.paragraph_format.space_after = Pt(0)
+        r = p_tot_val.add_run(str(total_marks))
+        r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
+
+        p_sig2 = assessment_table.rows[2].cells[sig_lbl_col_idx].paragraphs[0]
+        p_sig2.paragraph_format.space_after = Pt(0)
+        r = p_sig2.add_run("Rechk. Sign")
+        r.font.bold = True; r.font.size = Pt(10); set_run_font(r, 'Nirmala UI')
 
     def add_section_heading(title_text, marks_text):
         tbl = doc.add_table(rows=1, cols=2)
@@ -507,30 +508,104 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
             p_in.paragraph_format.space_after = Pt(2)
             add_formatted_math_text(p_in, sec['intro_text'], font_size=DOCX_BODY_FONT_SIZE)
 
-        if sec.get('diagram_type') == 'pictograph':
-            pic_path = os.path.join(temp_dir, 'sec_pictograph.png')
-            generate_pictograph_chart(pic_path)
-            p_img = doc.add_paragraph()
-            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p_img.paragraph_format.space_after = Pt(1)
-            p_img.paragraph_format.space_before = Pt(0)
-            p_img.add_run().add_picture(pic_path, width=Inches(3.4))
-        elif sec.get('diagram_type') == 'geometry_lines':
-            geom_path = os.path.join(temp_dir, 'sec_geometry_lines.png')
-            generate_lines_rays_diagram(geom_path)
-            p_img = doc.add_paragraph()
-            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p_img.paragraph_format.space_after = Pt(1)
-            p_img.paragraph_format.space_before = Pt(0)
-            p_img.add_run().add_picture(geom_path, width=Inches(2.8))
-        elif sec.get('diagram_type') == 'zigzag':
-            zig_path = os.path.join(temp_dir, 'sec_zigzag.png')
-            generate_zigzag_diagram(zig_path)
-            p_img = doc.add_paragraph()
-            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p_img.paragraph_format.space_after = Pt(1)
-            p_img.paragraph_format.space_before = Pt(0)
-            p_img.add_run().add_picture(zig_path, width=Inches(1.8))
+        questions = sec.get('questions', [])
+        q_type = sec.get('type', 'general')
+        diag_type = sec.get('diagram_type')
+        is_side_by_side = bool(diag_type and len(questions) > 0 and sec.get('diagram_layout') != 'stacked')
+
+        if is_side_by_side:
+            # Generate diagram image
+            diag_img_path = None
+            if diag_type == 'geometry_lines':
+                diag_img_path = os.path.join(temp_dir, 'sec_geometry_lines.png')
+                generate_lines_rays_diagram(diag_img_path)
+                diag_w = Inches(2.7)
+            elif diag_type == 'zigzag':
+                diag_img_path = os.path.join(temp_dir, 'sec_zigzag.png')
+                generate_zigzag_diagram(diag_img_path)
+                diag_w = Inches(2.2)
+            elif diag_type == 'pictograph':
+                diag_img_path = os.path.join(temp_dir, 'sec_pictograph.png')
+                generate_pictograph_chart(diag_img_path)
+                diag_w = Inches(2.9)
+            else:
+                diag_w = Inches(2.7)
+
+            # 2-column borderless table: Options Left (4.3 in), Diagram Right (2.9 in)
+            sbs_tbl = doc.add_table(rows=1, cols=2)
+            sbs_tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+            sbs_tbl.autofit = False
+            sbs_tbl.columns[0].width = Inches(4.3)
+            sbs_tbl.columns[1].width = Inches(2.9)
+            sbs_tbl.rows[0].cells[0].width = Inches(4.3)
+            sbs_tbl.rows[0].cells[1].width = Inches(2.9)
+
+            tblPr_sbs = sbs_tbl._tbl.tblPr
+            tblPr_sbs.append(parse_xml(
+                f'<w:tblBorders {nsdecls("w")}>'
+                f'<w:top w:val="none"/>'
+                f'<w:bottom w:val="none"/>'
+                f'<w:left w:val="none"/>'
+                f'<w:right w:val="none"/>'
+                f'<w:insideH w:val="none"/>'
+                f'<w:insideV w:val="none"/>'
+                f'</w:tblBorders>'
+            ))
+
+            cell_opts = sbs_tbl.rows[0].cells[0]
+            cell_diag = sbs_tbl.rows[0].cells[1]
+            set_cell_margins(cell_opts, top=10, bottom=10, left=5, right=15)
+            set_cell_margins(cell_diag, top=10, bottom=10, left=10, right=5)
+
+            # Left Cell: Options / Questions vertically
+            for q_idx, q in enumerate(questions):
+                p_q = cell_opts.paragraphs[0] if q_idx == 0 else cell_opts.add_paragraph()
+                p_q.paragraph_format.space_before = Pt(2)
+                p_q.paragraph_format.space_after = Pt(2.5)
+                p_q.paragraph_format.line_spacing = 1.15
+                add_formatted_math_text(p_q, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', False))
+                if q.get('answer_lines'):
+                    for line_idx in range(q.get('answer_lines', 1)):
+                        p_ans = cell_opts.add_paragraph()
+                        p_ans.paragraph_format.space_before = Pt(1)
+                        p_ans.paragraph_format.space_after = Pt(2)
+                        p_ans_r = p_ans.add_run('_________________________________________')
+                        set_run_font(p_ans_r, 'Nirmala UI')
+                        p_ans_r.font.size = Pt(9.5)
+                        p_ans_r.font.color.rgb = RGBColor(100, 116, 139)
+
+            # Right Cell: Diagram picture
+            if diag_img_path and os.path.exists(diag_img_path):
+                p_diag = cell_diag.paragraphs[0]
+                p_diag.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p_diag.paragraph_format.space_before = Pt(0)
+                p_diag.paragraph_format.space_after = Pt(0)
+                p_diag.add_run().add_picture(diag_img_path, width=diag_w)
+        else:
+            if sec.get('diagram_type') == 'pictograph':
+                pic_path = os.path.join(temp_dir, 'sec_pictograph.png')
+                generate_pictograph_chart(pic_path)
+                p_img = doc.add_paragraph()
+                p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p_img.paragraph_format.space_after = Pt(1)
+                p_img.paragraph_format.space_before = Pt(0)
+                p_img.add_run().add_picture(pic_path, width=Inches(3.4))
+            elif sec.get('diagram_type') == 'geometry_lines':
+                geom_path = os.path.join(temp_dir, 'sec_geometry_lines.png')
+                generate_lines_rays_diagram(geom_path)
+                p_img = doc.add_paragraph()
+                p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p_img.paragraph_format.space_after = Pt(1)
+                p_img.paragraph_format.space_before = Pt(0)
+                p_img.add_run().add_picture(geom_path, width=Inches(2.8))
+            elif sec.get('diagram_type') == 'zigzag':
+                zig_path = os.path.join(temp_dir, 'sec_zigzag.png')
+                generate_zigzag_diagram(zig_path)
+                p_img = doc.add_paragraph()
+                p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p_img.paragraph_format.space_after = Pt(1)
+                p_img.paragraph_format.space_before = Pt(0)
+                p_img.add_run().add_picture(zig_path, width=Inches(1.8))
 
         if sec.get('table_data'):
             tbl_info = sec['table_data']
@@ -569,46 +644,47 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
                             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                         add_formatted_math_text(p, str(val), font_size=DOCX_BODY_FONT_SIZE)
 
-        questions = sec.get('questions', [])
-        q_type = sec.get('type', 'general')
+        render_general_questions = not is_side_by_side
+        if render_general_questions:
+            # Check if questions in this section should be rendered horizontally across columns
+            is_horizontal_subquestions = (
+                q_type != 'mcq' and 
+                len(questions) in [2, 3, 4] and 
+                all(re.match(r'^[a-d]\)', q.get('text', '').strip()) or len(q.get('text', '')) < 45 for q in questions) and
+                not any(q.get('answer_lines') for q in questions)
+            )
 
-        # Check if questions in this section should be rendered horizontally across columns
-        is_horizontal_subquestions = (
-            q_type != 'mcq' and 
-            len(questions) in [2, 3, 4] and 
-            all(re.match(r'^[a-d]\)', q.get('text', '').strip()) or len(q.get('text', '')) < 45 for q in questions) and
-            not any(q.get('answer_lines') for q in questions)
-        )
+            if is_horizontal_subquestions and len(questions) > 1:
+                # Render sub-questions side-by-side in a borderless table
+                sub_tbl = doc.add_table(rows=1, cols=len(questions))
+                sub_tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+                sub_tbl.autofit = False
+                tblPr_sub = sub_tbl._tbl.tblPr
+                tblPr_sub.append(parse_xml(
+                    f'<w:tblBorders {nsdecls("w")}>'
+                    f'<w:top w:val="none"/>'
+                    f'<w:bottom w:val="none"/>'
+                    f'<w:left w:val="none"/>'
+                    f'<w:right w:val="none"/>'
+                    f'<w:insideH w:val="none"/>'
+                    f'<w:insideV w:val="none"/>'
+                    f'</w:tblBorders>'
+                ))
 
-        if is_horizontal_subquestions and len(questions) > 1:
-            # Render sub-questions side-by-side in a borderless table
-            sub_tbl = doc.add_table(rows=1, cols=len(questions))
-            sub_tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
-            sub_tbl.autofit = False
-            tblPr_sub = sub_tbl._tbl.tblPr
-            tblPr_sub.append(parse_xml(
-                f'<w:tblBorders {nsdecls("w")}>'
-                f'<w:top w:val="none"/>'
-                f'<w:bottom w:val="none"/>'
-                f'<w:left w:val="none"/>'
-                f'<w:right w:val="none"/>'
-                f'<w:insideH w:val="none"/>'
-                f'<w:insideV w:val="none"/>'
-                f'</w:tblBorders>'
-            ))
+                col_width = Inches(7.2 / len(questions))
+                for col in sub_tbl.columns:
+                    col.width = col_width
+                for q_idx, q in enumerate(questions):
+                    cell = sub_tbl.rows[0].cells[q_idx]
+                    cell.width = col_width
+                    set_cell_margins(cell, top=15, bottom=20, left=15, right=15)
+                    p_sub = cell.paragraphs[0]
+                    p_sub.paragraph_format.space_before = Pt(2)
+                    p_sub.paragraph_format.space_after = Pt(2)
+                    add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
+                render_general_questions = False
 
-            col_width = Inches(7.2 / len(questions))
-            for col in sub_tbl.columns:
-                col.width = col_width
-            for q_idx, q in enumerate(questions):
-                cell = sub_tbl.rows[0].cells[q_idx]
-                cell.width = col_width
-                set_cell_margins(cell, top=15, bottom=20, left=15, right=15)
-                p_sub = cell.paragraphs[0]
-                p_sub.paragraph_format.space_before = Pt(2)
-                p_sub.paragraph_format.space_after = Pt(2)
-                add_formatted_math_text(p_sub, q.get('text', ''), font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', True))
-        else:
+        if render_general_questions:
             for q_idx, q in enumerate(questions):
                 q_text = q.get('text', '')
                 

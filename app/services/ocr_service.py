@@ -375,16 +375,17 @@ def get_sample_std6_maths_paper():
             },
             {
                 "id": "sec_3c",
-                "title": "Q-3 (C) Geometric Figure Analysis:",
+                "title": "Q-3 (C) In the figure name.",
                 "marks": "4 Marks",
                 "type": "general",
                 "intro_text": "In the given figure below, name the following:",
                 "diagram_type": "geometry_lines",
+                "diagram_layout": "side_by_side",
                 "questions": [
-                    {"text": "a.  Five points      : _______________________________________________________________________"},
-                    {"text": "b.  Two lines        : _______________________________________________________________________"},
-                    {"text": "c.  Four rays        : _______________________________________________________________________"},
-                    {"text": "d.  A line segment   : _______________________________________________________________________"}
+                    {"text": "a. Five Point"},
+                    {"text": "b. Two lines"},
+                    {"text": "c. Four rays"},
+                    {"text": "d. A line Segment."}
                 ]
             },
             {

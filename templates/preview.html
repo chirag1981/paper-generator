@@ -160,11 +160,16 @@
     // Render Merged Question Assessment & Signatures Table
     const marksContainer = document.getElementById('pvMarksTableContainer');
     if (marksContainer) {
-      let qHeadersHtml = qSum.questions.map(q => `<th style="border: 1.5px solid #000; padding: 6px 8px; text-align: center; min-width: 44px;">${q.name}</th>`).join('');
-      let qBlankCellsHtml = qSum.questions.map(() => `<td style="border: 1.5px solid #000; padding: 6px 8px; text-align: center;">&nbsp;</td>`).join('');
-      let qMarksHtml = qSum.questions.map(q => `<td style="border: 1.5px solid #000; padding: 6px 8px; text-align: center; font-weight: 700;">${q.marks}</td>`).join('');
+      if (paper && paper.show_marks_table === false) {
+        marksContainer.innerHTML = '';
+        marksContainer.style.display = 'none';
+      } else {
+        marksContainer.style.display = 'block';
+        let qHeadersHtml = qSum.questions.map(q => `<th style="border: 1.5px solid #000; padding: 6px 8px; text-align: center; min-width: 44px;">${q.name}</th>`).join('');
+        let qBlankCellsHtml = qSum.questions.map(() => `<td style="border: 1.5px solid #000; padding: 6px 8px; text-align: center;">&nbsp;</td>`).join('');
+        let qMarksHtml = qSum.questions.map(q => `<td style="border: 1.5px solid #000; padding: 6px 8px; text-align: center; font-weight: 700;">${q.marks}</td>`).join('');
 
-      marksContainer.innerHTML = `
+        marksContainer.innerHTML = `
         <table style="border-collapse: collapse; border: 1.5px solid #000; font-size: 0.85rem; font-weight: 700; width: 100%;">
           <thead>
             <tr>
@@ -194,6 +199,7 @@
           </tbody>
         </table>
       `;
+      }
     }
 
     const container = document.getElementById('previewSections');
@@ -254,123 +260,184 @@
         secDiv.appendChild(pIn);
       }
 
-      if (sec.diagram_type === 'pictograph') {
-        const img = document.createElement('img');
-        img.src = '/static/img/pictograph_clean.png';
-        img.style.width = '100%';
-        img.style.borderRadius = '6px';
-        img.style.margin = '10px 0';
-        secDiv.appendChild(img);
-      } else if (sec.diagram_type === 'geometry_lines') {
-        const img = document.createElement('img');
-        img.src = '/static/img/figure_q3c.png';
-        img.style.width = '70%';
-        img.style.display = 'block';
-        img.style.margin = '10px auto';
-        secDiv.appendChild(img);
-      } else if (sec.diagram_type === 'zigzag') {
-        const img = document.createElement('img');
-        img.src = '/static/img/figure_q3a3.png';
-        img.style.width = '55%';
-        img.style.display = 'block';
-        img.style.margin = '10px auto';
-        secDiv.appendChild(img);
-      }
-
-      // Table Data (e.g. Q-2 (B) Complete the following table)
-      if (sec.table_data) {
-        const t = document.createElement('table');
-        t.style.width = '100%';
-        t.style.borderCollapse = 'collapse';
-        t.style.border = '1.5px solid #000';
-        t.style.margin = '10px 0 16px';
-        t.style.fontSize = '12pt';
-        
-        const headers = sec.table_data.headers || [];
-        const rows = sec.table_data.rows || [];
-
-        let tableHtml = `
-          <thead>
-            <tr style="background: #f1f5f9; font-weight: bold;">
-              ${headers.map(h => `<th style="border: 1.5px solid #000; padding: 6px 10px; text-align: center;">${typeof formatMathFractions === 'function' ? formatMathFractions(h) : h}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map((r, i) => `
-              <tr style="background: ${i%2===1 ? '#f8fafc' : '#ffffff'};">
-                ${headers.map((_, cIdx) => `
-                  <td style="border: 1.5px solid #000; padding: 6px 10px; text-align: ${cIdx===1?'left':'center'}; font-weight: ${cIdx<=1?'bold':'normal'};">
-                    ${r[cIdx] ? (typeof formatMathFractions === 'function' ? formatMathFractions(r[cIdx]) : r[cIdx]) : '&nbsp;'}
-                  </td>
-                `).join('')}
-              </tr>
-            `).join('')}
-          </tbody>
-        `;
-        t.innerHTML = tableHtml;
-        secDiv.appendChild(t);
-      }
-
       const questions = sec.questions || [];
-      const isHorizontalSubq = sec.type !== 'mcq' && questions.length > 1 && questions.every(q => /^[a-d]\)/i.test((q.text || '').trim()) || (q.text || '').length < 45) && !questions.some(q => q.answer_lines || q.diagram_type);
+      const hasSecDiagram = Boolean(sec.diagram_type);
+      const isSideBySide = hasSecDiagram && questions.length > 0 && sec.diagram_layout !== 'stacked';
 
-      if (isHorizontalSubq) {
-        // Render subquestions side-by-side in horizontal grid
-        const subGrid = document.createElement('div');
-        subGrid.className = 'subq-horizontal-grid';
-        subGrid.style.gridTemplateColumns = `repeat(${questions.length}, 1fr)`;
-        subGrid.style.margin = '8px 0 12px';
+      if (isSideBySide) {
+        // Options on Left, Figure on Right (Space-saving layout)
+        const sbsGrid = document.createElement('div');
+        sbsGrid.style.display = 'grid';
+        sbsGrid.style.gridTemplateColumns = '1.3fr 1fr';
+        sbsGrid.style.gap = '20px';
+        sbsGrid.style.alignItems = 'center';
+        sbsGrid.style.margin = '10px 0 16px';
+
+        // Left Column: Options/Questions vertically
+        const leftCol = document.createElement('div');
+        leftCol.style.display = 'flex';
+        leftCol.style.flexDirection = 'column';
+        leftCol.style.gap = '8px';
 
         questions.forEach(q => {
           const qDiv = document.createElement('div');
           qDiv.style.fontSize = '12pt';
           qDiv.style.fontWeight = q.is_bold ? '700' : '500';
-          qDiv.innerHTML = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
-          subGrid.appendChild(qDiv);
-        });
-
-        secDiv.appendChild(subGrid);
-      } else {
-        questions.forEach(q => {
-          const qDiv = document.createElement('div');
-          qDiv.style.marginBottom = '10px';
-          qDiv.style.fontSize = '12pt';
-          
           const formattedText = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
           let qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
-          
-          if (sec.type === 'mcq' && q.options) {
-            qHtml += `<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 10px 14px; font-size: 12pt;">
-              ${q.options.map(o => `<div>${typeof formatMathFractions === 'function' ? formatMathFractions(o) : o}</div>`).join('')}
-            </div>`;
-          } else if (sec.type === 'true_false') {
-            qHtml = `<div style="display: flex; justify-content: space-between;"><span>${formattedText}</span> <span style="color: #94a3b8; font-weight: bold;">[ &nbsp; &nbsp; &nbsp; ]</span></div>`;
-          }
-
-          if (q.diagram_type === 'zigzag') {
-            qHtml += `<img src="/static/img/figure_q3a3.png" style="width: 50%; display: block; margin: 8px auto; border-radius: 4px;">`;
-          } else if (q.diagram_type === 'geometry_lines') {
-            qHtml += `<img src="/static/img/figure_q3c.png" style="width: 65%; display: block; margin: 8px auto; border-radius: 4px;">`;
-          } else if (q.diagram_type === 'pictograph') {
-            qHtml += `<img src="/static/img/pictograph_clean.png" style="width: 90%; display: block; margin: 8px auto; border-radius: 4px;">`;
-          }
-
-          if (q.supercell_cells) {
-            qHtml += `<table style="width: 100%; border-collapse: collapse; margin: 8px 0; text-align: center;">
-              <tr>${q.supercell_cells.map(c => `<td style="border: 1px solid #334155; padding: 6px; font-weight: bold; background: #f8fafc;">${c}</td>`).join('')}</tr>
-            </table>`;
-          }
-
           if (q.answer_lines) {
             for (let l = 0; l < q.answer_lines; l++) {
               const prefix = l === 0 ? (q.answer_prefix || 'Ans: ') : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
-              qHtml += `<div style="color: #94a3b8; font-size: 0.85rem; margin-top: 2px;">${prefix}_______________________________________________________________________________</div>`;
+              qHtml += `<div style="color: #94a3b8; font-size: 10pt; margin-top: 2px;">${prefix}_____________________________________</div>`;
             }
           }
-
           qDiv.innerHTML = qHtml;
-          secDiv.appendChild(qDiv);
+          leftCol.appendChild(qDiv);
         });
+        sbsGrid.appendChild(leftCol);
+
+        // Right Column: Figure
+        const rightCol = document.createElement('div');
+        rightCol.style.textAlign = 'center';
+        rightCol.style.display = 'flex';
+        rightCol.style.alignItems = 'center';
+        rightCol.style.justifyContent = 'center';
+
+        let imgSrc = '';
+        if (sec.diagram_type === 'geometry_lines') imgSrc = '/static/img/figure_q3c.png';
+        else if (sec.diagram_type === 'zigzag') imgSrc = '/static/img/figure_q3a3.png';
+        else if (sec.diagram_type === 'pictograph') imgSrc = '/static/img/pictograph_clean.png';
+
+        if (imgSrc) {
+          const img = document.createElement('img');
+          img.src = imgSrc;
+          img.style.maxWidth = '100%';
+          img.style.maxHeight = '145px';
+          img.style.objectFit = 'contain';
+          img.style.borderRadius = '4px';
+          rightCol.appendChild(img);
+        }
+        sbsGrid.appendChild(rightCol);
+
+        secDiv.appendChild(sbsGrid);
+      } else {
+        if (sec.diagram_type === 'pictograph') {
+          const img = document.createElement('img');
+          img.src = '/static/img/pictograph_clean.png';
+          img.style.width = '100%';
+          img.style.borderRadius = '6px';
+          img.style.margin = '10px 0';
+          secDiv.appendChild(img);
+        } else if (sec.diagram_type === 'geometry_lines') {
+          const img = document.createElement('img');
+          img.src = '/static/img/figure_q3c.png';
+          img.style.width = '70%';
+          img.style.display = 'block';
+          img.style.margin = '10px auto';
+          secDiv.appendChild(img);
+        } else if (sec.diagram_type === 'zigzag') {
+          const img = document.createElement('img');
+          img.src = '/static/img/figure_q3a3.png';
+          img.style.width = '55%';
+          img.style.display = 'block';
+          img.style.margin = '10px auto';
+          secDiv.appendChild(img);
+        }
+
+        // Table Data (e.g. Q-2 (B) Complete the following table)
+        if (sec.table_data) {
+          const t = document.createElement('table');
+          t.style.width = '100%';
+          t.style.borderCollapse = 'collapse';
+          t.style.border = '1.5px solid #000';
+          t.style.margin = '10px 0 16px';
+          t.style.fontSize = '12pt';
+          
+          const headers = sec.table_data.headers || [];
+          const rows = sec.table_data.rows || [];
+
+          let tableHtml = `
+            <thead>
+              <tr style="background: #f1f5f9; font-weight: bold;">
+                ${headers.map(h => `<th style="border: 1.5px solid #000; padding: 6px 10px; text-align: center;">${typeof formatMathFractions === 'function' ? formatMathFractions(h) : h}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r, i) => `
+                <tr style="background: ${i%2===1 ? '#f8fafc' : '#ffffff'};">
+                  ${headers.map((_, cIdx) => `
+                    <td style="border: 1.5px solid #000; padding: 6px 10px; text-align: ${cIdx===1?'left':'center'}; font-weight: ${cIdx<=1?'bold':'normal'};">
+                      ${r[cIdx] ? (typeof formatMathFractions === 'function' ? formatMathFractions(r[cIdx]) : r[cIdx]) : '&nbsp;'}
+                    </td>
+                  `).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          `;
+          t.innerHTML = tableHtml;
+          secDiv.appendChild(t);
+        }
+
+        const isHorizontalSubq = sec.type !== 'mcq' && questions.length > 1 && questions.every(q => /^[a-d]\)/i.test((q.text || '').trim()) || (q.text || '').length < 45) && !questions.some(q => q.answer_lines || q.diagram_type);
+
+        if (isHorizontalSubq) {
+          // Render subquestions side-by-side in horizontal grid
+          const subGrid = document.createElement('div');
+          subGrid.className = 'subq-horizontal-grid';
+          subGrid.style.gridTemplateColumns = `repeat(${questions.length}, 1fr)`;
+          subGrid.style.margin = '8px 0 12px';
+
+          questions.forEach(q => {
+            const qDiv = document.createElement('div');
+            qDiv.style.fontSize = '12pt';
+            qDiv.style.fontWeight = q.is_bold ? '700' : '500';
+            qDiv.innerHTML = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
+            subGrid.appendChild(qDiv);
+          });
+
+          secDiv.appendChild(subGrid);
+        } else {
+          questions.forEach(q => {
+            const qDiv = document.createElement('div');
+            qDiv.style.marginBottom = '10px';
+            qDiv.style.fontSize = '12pt';
+            
+            const formattedText = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
+            let qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
+            
+            if (sec.type === 'mcq' && q.options) {
+              qHtml += `<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 6px 0 10px 14px; font-size: 12pt;">
+                ${q.options.map(o => `<div>${typeof formatMathFractions === 'function' ? formatMathFractions(o) : o}</div>`).join('')}
+              </div>`;
+            } else if (sec.type === 'true_false') {
+              qHtml = `<div style="display: flex; justify-content: space-between;"><span>${formattedText}</span> <span style="color: #94a3b8; font-weight: bold;">[ &nbsp; &nbsp; &nbsp; ]</span></div>`;
+            }
+
+            if (q.diagram_type === 'zigzag') {
+              qHtml += `<img src="/static/img/figure_q3a3.png" style="width: 50%; display: block; margin: 8px auto; border-radius: 4px;">`;
+            } else if (q.diagram_type === 'geometry_lines') {
+              qHtml += `<img src="/static/img/figure_q3c.png" style="width: 65%; display: block; margin: 8px auto; border-radius: 4px;">`;
+            } else if (q.diagram_type === 'pictograph') {
+              qHtml += `<img src="/static/img/pictograph_clean.png" style="width: 90%; display: block; margin: 8px auto; border-radius: 4px;">`;
+            }
+
+            if (q.supercell_cells) {
+              qHtml += `<table style="width: 100%; border-collapse: collapse; margin: 8px 0; text-align: center;">
+                <tr>${q.supercell_cells.map(c => `<td style="border: 1px solid #334155; padding: 6px; font-weight: bold; background: #f8fafc;">${c}</td>`).join('')}</tr>
+              </table>`;
+            }
+
+            if (q.answer_lines) {
+              for (let l = 0; l < q.answer_lines; l++) {
+                const prefix = l === 0 ? (q.answer_prefix || 'Ans: ') : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+                qHtml += `<div style="color: #94a3b8; font-size: 0.85rem; margin-top: 2px;">${prefix}_______________________________________________________________________________</div>`;
+              }
+            }
+
+            qDiv.innerHTML = qHtml;
+            secDiv.appendChild(qDiv);
+          });
+        }
       }
 
       if (sec.drawing_boxes && sec.drawing_boxes.length > 0) {

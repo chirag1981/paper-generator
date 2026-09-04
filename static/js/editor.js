@@ -502,9 +502,41 @@ function getMarksTableQuestions(paper) {
   return paper ? paper.custom_marks_table : qSum.questions;
 }
 
+function toggleAssessmentMarksTable() {
+  if (!paperData) return;
+  paperData.show_marks_table = (paperData.show_marks_table === false) ? true : false;
+  saveToLocal();
+  renderEditorAssessmentTable();
+}
+
 function renderEditorAssessmentTable() {
   const marksContainer = document.getElementById('editorMarksTableContainer');
+  const btnToggle = document.getElementById('btnToggleMarksTable');
   if (!marksContainer || !paperData) return;
+
+  if (paperData.show_marks_table === false) {
+    if (btnToggle) {
+      btnToggle.className = 'btn btn-outline-primary btn-sm';
+      btnToggle.innerHTML = '<i class="fa-solid fa-plus"></i> Restore Table';
+      btnToggle.title = 'Restore Question Assessment Marks Table';
+    }
+    marksContainer.innerHTML = `
+      <div style="padding: 14px 16px; background: white; border: 1.5px dashed #cbd5e1; border-radius: 6px; text-align: center; color: var(--slate-600); font-size: 0.85rem;">
+        <i class="fa-solid fa-eye-slash" style="color: #94a3b8; font-size: 1.1rem; margin-right: 6px;"></i>
+        <span>Assessment Marks Table is <strong>deleted / hidden</strong> from this exam paper output.</span>
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-left: 12px; font-size: 0.78rem; padding: 2px 10px;" onclick="toggleAssessmentMarksTable()">
+          <i class="fa-solid fa-rotate-left"></i> Restore Table
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  if (btnToggle) {
+    btnToggle.className = 'btn btn-outline-danger btn-sm';
+    btnToggle.innerHTML = '<i class="fa-solid fa-trash"></i> Delete Table';
+    btnToggle.title = 'Delete Question Assessment Marks Table from paper';
+  }
 
   const questions = getMarksTableQuestions(paperData);
   const total = questions.reduce((acc, q) => acc + (parseInt(q.marks, 10) || 0), 0);
@@ -755,17 +787,29 @@ function renderEditor() {
     const secDiagPreview = secDiagram === 'geometry_lines' ? '<img src="/static/img/figure_q3c.png" style="max-height: 70px; border: 1px solid #cbd5e1; border-radius: 4px; margin-top: 6px;">' :
       (secDiagram === 'zigzag' ? '<img src="/static/img/figure_q3a3.png" style="max-height: 60px; border: 1px solid #cbd5e1; border-radius: 4px; margin-top: 6px;">' :
       (secDiagram === 'pictograph' ? '<img src="/static/img/pictograph_clean.png" style="max-height: 80px; border: 1px solid #cbd5e1; border-radius: 4px; margin-top: 6px;">' : ''));
+    const secLayout = sec.diagram_layout || 'side_by_side';
 
     body.innerHTML += `
       <div class="field-group" style="margin-bottom: 12px; background: #f8fafc; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-          <label class="field-label" style="margin: 0; font-weight: 700; color: #1e293b;"><i class="fa-solid fa-shapes" style="color: var(--primary-600);"></i> Section Diagram / Figure:</label>
-          <select class="input-control" style="width: auto; font-size: 0.82rem; padding: 3px 8px; font-weight: 600;" onchange="updateSectionDiagramType(${sIdx}, this.value)">
-            <option value="" ${!secDiagram ? 'selected' : ''}>— None —</option>
-            <option value="geometry_lines" ${secDiagram === 'geometry_lines' ? 'selected' : ''}>📐 Geometry: Intersecting Lines & Rays (G-A-C-E, Ray AB, Line FD)</option>
-            <option value="zigzag" ${secDiagram === 'zigzag' ? 'selected' : ''}>📐 Geometry: Zigzag Polyline (L-M-P-Q-R)</option>
-            <option value="pictograph" ${secDiagram === 'pictograph' ? 'selected' : ''}>📊 Chart: Pictograph (Girl Students)</option>
-          </select>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <label class="field-label" style="margin: 0; font-weight: 700; color: #1e293b;"><i class="fa-solid fa-shapes" style="color: var(--primary-600);"></i> Section Diagram / Figure:</label>
+            <select class="input-control" style="width: auto; font-size: 0.82rem; padding: 3px 8px; font-weight: 600;" onchange="updateSectionDiagramType(${sIdx}, this.value)">
+              <option value="" ${!secDiagram ? 'selected' : ''}>— None —</option>
+              <option value="geometry_lines" ${secDiagram === 'geometry_lines' ? 'selected' : ''}>📐 Geometry: Intersecting Lines & Rays (G-A-C-E, Ray AB, Line FD)</option>
+              <option value="zigzag" ${secDiagram === 'zigzag' ? 'selected' : ''}>📐 Geometry: Zigzag Polyline (L-M-P-Q-R)</option>
+              <option value="pictograph" ${secDiagram === 'pictograph' ? 'selected' : ''}>📊 Chart: Pictograph (Girl Students)</option>
+            </select>
+          </div>
+          ${secDiagram ? `
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label class="field-label" style="margin: 0; font-size: 0.78rem; font-weight: 700; color: #475569;">Layout:</label>
+            <select class="input-control" style="width: auto; font-size: 0.78rem; padding: 2px 6px; font-weight: 600;" onchange="updateSectionDiagramLayout(${sIdx}, this.value)" title="Choose options and diagram layout">
+              <option value="side_by_side" ${secLayout !== 'stacked' ? 'selected' : ''}>Options Left, Figure Right (Space Saver)</option>
+              <option value="stacked" ${secLayout === 'stacked' ? 'selected' : ''}>Figure Centered, Options Below</option>
+            </select>
+          </div>
+          ` : ''}
         </div>
         ${secDiagPreview ? `<div style="text-align: center; margin-top: 6px;">${secDiagPreview}</div>` : ''}
       </div>
@@ -909,9 +953,20 @@ function updateSectionDiagramType(sIdx, val) {
   if (paperData && paperData.sections[sIdx]) {
     if (val) {
       paperData.sections[sIdx].diagram_type = val;
+      if (!paperData.sections[sIdx].diagram_layout) {
+        paperData.sections[sIdx].diagram_layout = 'side_by_side';
+      }
     } else {
       delete paperData.sections[sIdx].diagram_type;
     }
+    saveToLocal();
+    renderEditor();
+  }
+}
+
+function updateSectionDiagramLayout(sIdx, val) {
+  if (paperData && paperData.sections[sIdx]) {
+    paperData.sections[sIdx].diagram_layout = val;
     saveToLocal();
     renderEditor();
   }
