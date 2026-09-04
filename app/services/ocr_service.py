@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from typing import List, Dict, Any, Optional
 
@@ -132,12 +133,17 @@ CRITICAL RULES FOR FIGURES & DIAGRAMS (DO NOT OUTPUT TEXT PLACEHOLDERS):
      NEVER put them into "drawing_boxes" as plain text placeholders!
      Instead, output each item as a question with "diagram_type": "clock_blank" (or "clock" if hands are pre-drawn).
      Set the section's "subquestions_layout": "horizontal" so they display side-by-side in columns with the clock face on top and the label/blank line underneath.
-3. DRAWING BOXES vs DIAGRAMS:
+3. 2D & 3D GEOMETRIC SHAPES (e.g. "Name the following Shapes", "Identify the shapes"):
+   - When questions show 2D or 3D geometric shapes (Cylinder, Pyramid, Circle/Sphere, Cone, Cube, etc.):
+     NEVER output text placeholders like "[Cylinder shape]", "[Pyramid shape]", or "[Circle/Sphere shape]"!
+     Instead, set "diagram_type": "cylinder" | "pyramid" | "sphere" | "circle" | "cone" | "cube" on each question.
+     Set the question "text": "(1) = ____________" or "(1) ____________".
+4. DRAWING BOXES vs DIAGRAMS:
    - "drawing_boxes" are ONLY empty answer boxes for student construction questions (e.g. Q-3(D) "Use a protractor to draw angles: 40°, 75°, 95°, 82°" -> drawing_boxes: ["(1) 40°", "(2) 75°", "(3) 95°", "(4) 82°"]).
-   - Do NOT put existing question diagrams or clock faces inside drawing_boxes!
-4. CAPTURE ALL CONTENT VERBATIM:
+   - Do NOT put existing question diagrams, shapes, or clock faces inside drawing_boxes!
+5. CAPTURE ALL CONTENT VERBATIM:
    - Capture all sections, marks (e.g. (8), [4]), fractions (e.g. "3/4 + 7/4 = ______"), tables, and sub-questions from Page 1 all the way to Page {num_pages}.
-5. Output MUST be RAW JSON only. Do not add markdown code fences or backticks.
+6. Output MUST be RAW JSON only. Do not add markdown code fences or backticks.
 """
 
     env_model = os.environ.get('GEMINI_MODEL', '').strip()
@@ -271,6 +277,32 @@ def sanitize_and_fix_paper_diagrams(paper: Dict[str, Any]) -> Dict[str, Any]:
             elif any(term in q_text for term in ["draw hands", "quarter to", "half past", "quarter past", "o'clock", "clock face"]):
                 if not q.get("diagram_type"):
                     q["diagram_type"] = "clock_blank"
+
+            # Detect 2D / 3D geometric shape placeholders in question text (e.g. "[Cylinder shape] = ...")
+            detected_shape = None
+            if "cylinder" in q_text:
+                detected_shape = "cylinder"
+            elif "pyramid" in q_text:
+                detected_shape = "pyramid"
+            elif "sphere" in q_text:
+                detected_shape = "sphere"
+            elif "circle" in q_text:
+                detected_shape = "circle"
+            elif "cone" in q_text:
+                detected_shape = "cone"
+            elif "cube" in q_text or "cuboid" in q_text:
+                detected_shape = "cube"
+
+            if detected_shape and (any(p in q_text for p in ["[", "shape", "name the following"]) or not q.get("diagram_type")):
+                q["diagram_type"] = detected_shape
+                # Strip out bracketed placeholder e.g. [Cylinder shape], [Pyramid shape], [Circle/Sphere shape]
+                orig_text = q.get("text") or ""
+                clean_text = re.sub(r'\[\s*(?:cylinder|pyramid|circle|sphere|cone|cube|cuboid)[^\]]*\]', '', orig_text, flags=re.IGNORECASE)
+                clean_text = re.sub(r'\s*=\s*', ' = ', clean_text)
+                clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+                if "___" not in clean_text and "..." not in clean_text:
+                    clean_text = f"{clean_text} _________________________"
+                q["text"] = clean_text
 
             # Strip out any 'Ans:' or generic answer prefixes
             if q.get("answer_prefix", "").strip().lower() in ["ans:", "ans.", "ans", "answer:", "answer"]:

@@ -13,7 +13,8 @@ from app.services.geometry_drawer import (
     generate_zigzag_diagram,
     generate_lines_rays_diagram,
     generate_pictograph_chart,
-    generate_clock_diagram
+    generate_clock_diagram,
+    generate_geometric_shape
 )
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,13 @@ DIAGRAM_WIDTHS = {
     'geometry_lines': {'side_by_side': Inches(2.7), 'standalone': Inches(2.8), 'inline': Inches(2.8)},
     'clock': {'side_by_side': Inches(1.5), 'standalone': Inches(1.8), 'inline': Inches(1.5)},
     'clock_blank': {'side_by_side': Inches(1.5), 'standalone': Inches(1.8), 'inline': Inches(1.5)},
+    'cylinder': {'side_by_side': Inches(1.5), 'standalone': Inches(1.8), 'inline': Inches(1.3)},
+    'pyramid': {'side_by_side': Inches(1.4), 'standalone': Inches(1.8), 'inline': Inches(1.2)},
+    'sphere': {'side_by_side': Inches(1.3), 'standalone': Inches(1.6), 'inline': Inches(1.2)},
+    'circle': {'side_by_side': Inches(1.3), 'standalone': Inches(1.6), 'inline': Inches(1.2)},
+    'cone': {'side_by_side': Inches(1.3), 'standalone': Inches(1.6), 'inline': Inches(1.2)},
+    'cube': {'side_by_side': Inches(1.3), 'standalone': Inches(1.6), 'inline': Inches(1.2)},
+    'cuboid': {'side_by_side': Inches(1.3), 'standalone': Inches(1.6), 'inline': Inches(1.2)},
 }
 
 # Regex to match question numbering prefixes like 1), (1), a), (a), A), (A), i), (i)
@@ -221,6 +229,8 @@ def _safe_generate_diagram(diag_type: str, img_path: str) -> bool:
             generate_pictograph_chart(img_path)
         elif diag_type in ['clock', 'clock_blank']:
             generate_clock_diagram(img_path, show_hands=(diag_type == 'clock'))
+        elif diag_type in ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']:
+            generate_geometric_shape(img_path, diag_type)
         return os.path.exists(img_path)
     except Exception as e:
         logger.warning(f"Failed to generate {diag_type} diagram at '{img_path}': {e}")
@@ -883,6 +893,57 @@ def _render_fill_in_blanks_question(doc, q_text: str, q_idx: int = 0):
 
 def _render_general_question(doc, q: dict, q_text: str, temp_dir: str, q_idx: int = 0):
     """Renders general math, descriptive, construction, or calculation questions."""
+    diag_type = q.get('diagram_type')
+    if not diag_type:
+        q_lower = (q_text or '').lower()
+        for s in ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']:
+            if s in q_lower and ('shape' in q_lower or '[' in q_lower):
+                diag_type = s
+                break
+    is_shape = diag_type in ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']
+
+    if is_shape:
+        # Render geometric shape question side-by-side: (1) [Shape Image] = ________________________
+        img_path = os.path.join(temp_dir, f"q_{q_idx}_{diag_type}.png") if temp_dir else f"static/img/shape_{diag_type}.png"
+        if not os.path.exists(img_path):
+            _safe_generate_diagram(diag_type, img_path)
+
+        tbl_shape = doc.add_table(rows=1, cols=2)
+        tbl_shape.alignment = WD_TABLE_ALIGNMENT.LEFT
+        tbl_shape.autofit = False
+        prevent_row_split(tbl_shape)
+        set_no_borders(tbl_shape)
+
+        c_left = tbl_shape.rows[0].cells[0]
+        c_right = tbl_shape.rows[0].cells[1]
+        c_left.width = Inches(2.2)
+        c_right.width = Inches(PAGE_CONTENT_WIDTH_INCHES - 2.2)
+        set_cell_margins(c_left, top=8, bottom=14, left=10, right=10)
+        set_cell_margins(c_right, top=8, bottom=14, left=10, right=10)
+
+        # Extract question number like (1), 1., etc.
+        prefix_match = QUESTION_PREFIX_REGEX.match(q_text)
+        num_prefix = prefix_match.group(0).strip() if prefix_match else f"({q_idx+1})"
+
+        p_l = c_left.paragraphs[0]
+        p_l.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        fmt_paragraph(p_l, before=Pt(2), after=Pt(2), spacing=1.0)
+        r_num = p_l.add_run(f"{num_prefix}  ")
+        set_run_font(r_num, 'Nirmala UI')
+        r_num.font.size = DOCX_BODY_FONT_SIZE; r_num.font.bold = True
+        r_num.font.color.rgb = PRIMARY_COLOR
+
+        if os.path.exists(img_path):
+            p_l.add_run().add_picture(img_path, width=Inches(1.2))
+
+        p_r = c_right.paragraphs[0]
+        p_r.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        fmt_paragraph(p_r, before=Pt(8), after=Pt(2), spacing=1.0)
+        has_eq = '=' in q_text
+        eq_str = "=  " if has_eq else ""
+        add_formatted_math_text(p_r, f"{eq_str}____________________________________________", font_size=DOCX_BODY_FONT_SIZE, is_bold=True)
+        return
+
     p = doc.add_paragraph()
     q_after = Pt(3) if q.get('answer_lines') else DOCX_QUESTION_SPACE_AFTER
     fmt_paragraph(p, before=DOCX_QUESTION_SPACING_BEFORE if q_idx > 0 else Pt(0), after=q_after, spacing=DOCX_LINE_SPACING, keep_with_next=bool(q.get('answer_lines')))
@@ -890,7 +951,6 @@ def _render_general_question(doc, q: dict, q_text: str, temp_dir: str, q_idx: in
         apply_question_indent(p, 0.3)
     add_formatted_math_text(p, q_text, font_size=DOCX_BODY_FONT_SIZE, is_bold=q.get('is_bold', False))
 
-    diag_type = q.get('diagram_type')
     if diag_type:
         diag_w = DIAGRAM_WIDTHS.get(diag_type, {}).get('inline', Inches(2.0))
         img_path = os.path.join(temp_dir, f"inline_{diag_type}.png")

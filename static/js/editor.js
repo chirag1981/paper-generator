@@ -933,10 +933,12 @@ function renderEditor() {
       }
 
       const qDiag = q.diagram_type || '';
+      const isQShape = ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].includes(qDiag);
       const qDiagImg = qDiag === 'zigzag' ? '<img src="/static/img/figure_q3a3.png" style="max-height: 55px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 6px auto;">' :
         (qDiag === 'geometry_lines' ? '<img src="/static/img/figure_q3c.png" style="max-height: 65px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 6px auto;">' :
         (qDiag === 'pictograph' ? '<img src="/static/img/pictograph_clean.png" style="max-height: 75px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 6px auto;">' :
-        (['clock', 'clock_blank'].includes(qDiag) ? '<img src="/static/img/clock_blank.png" style="max-height: 75px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 6px auto;">' : '')));
+        (['clock', 'clock_blank'].includes(qDiag) ? '<img src="/static/img/clock_blank.png" style="max-height: 75px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 6px auto;">' :
+        (isQShape ? `<img src="/static/img/shape_${qDiag}.png" style="max-height: 60px; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin: 6px auto;">` : ''))));
 
       // Live formatted math preview
       const previewHtml = `
@@ -962,11 +964,17 @@ function renderEditor() {
                 <span><i class="fa-solid fa-shapes"></i> Question Figure:</span>
                 <select style="font-size: 0.76rem; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc;" onchange="updateQuestionDiagramType(${sIdx}, ${qIdx}, this.value)">
                   <option value="" ${!qDiag ? 'selected' : ''}>None</option>
-                  <option value="zigzag" ${qDiag === 'zigzag' ? 'selected' : ''}>Zigzag Polyline (L-M-P-Q-R)</option>
-                  <option value="geometry_lines" ${qDiag === 'geometry_lines' ? 'selected' : ''}>Intersecting Lines & Rays</option>
-                  <option value="pictograph" ${qDiag === 'pictograph' ? 'selected' : ''}>Pictograph Chart</option>
+                  <option value="cylinder" ${qDiag === 'cylinder' ? 'selected' : ''}>🔷 Shape: Cylinder</option>
+                  <option value="pyramid" ${qDiag === 'pyramid' ? 'selected' : ''}>🔷 Shape: Pyramid</option>
+                  <option value="circle" ${qDiag === 'circle' ? 'selected' : ''}>🔷 Shape: Circle</option>
+                  <option value="sphere" ${qDiag === 'sphere' ? 'selected' : ''}>🔷 Shape: Sphere</option>
+                  <option value="cone" ${qDiag === 'cone' ? 'selected' : ''}>🔷 Shape: Cone</option>
+                  <option value="cube" ${qDiag === 'cube' ? 'selected' : ''}>🔷 Shape: Cube / Cuboid</option>
                   <option value="clock_blank" ${qDiag === 'clock_blank' ? 'selected' : ''}>🕒 Clock: Blank Clock Face (Draw Hands)</option>
                   <option value="clock" ${qDiag === 'clock' ? 'selected' : ''}>🕒 Clock: Clock with Hands</option>
+                  <option value="zigzag" ${qDiag === 'zigzag' ? 'selected' : ''}>📐 Geometry: Zigzag Polyline (L-M-P-Q-R)</option>
+                  <option value="geometry_lines" ${qDiag === 'geometry_lines' ? 'selected' : ''}>📐 Geometry: Intersecting Lines & Rays</option>
+                  <option value="pictograph" ${qDiag === 'pictograph' ? 'selected' : ''}>📊 Chart: Pictograph Chart</option>
                 </select>
               </div>
               ${(sec.type === 'mcq' || hasQOpts) ? `

@@ -232,3 +232,101 @@ def generate_clock_diagram(output_path: str, hour: int = None, minute: int = Non
     plt.close()
     return output_path
 
+
+def generate_geometric_shape(output_path: str, shape_type: str):
+    """
+    Generates clean, textbook-quality 2D and 3D geometric shape diagrams
+    (cylinder, pyramid, circle, sphere, cone, cube).
+    """
+    import numpy as np
+    from matplotlib.patches import Ellipse, Circle, Arc
+
+    out_dir = os.path.dirname(os.path.abspath(output_path))
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    shape = shape_type.lower().replace('shape_', '').strip()
+
+    if shape == 'cylinder':
+        fig, ax = plt.subplots(figsize=(2.6, 1.6), dpi=300)
+        ax.plot([0.3, 1.8], [0.8, 0.8], color='#1e293b', linewidth=2.4)
+        ax.plot([0.3, 1.8], [-0.8, -0.8], color='#1e293b', linewidth=2.4)
+        arc_left = Arc((0.3, 0), 0.5, 1.6, angle=0, theta1=90, theta2=270, color='#1e293b', linewidth=2.4)
+        arc_left_back = Arc((0.3, 0), 0.5, 1.6, angle=0, theta1=270, theta2=90, color='#94a3b8', linewidth=1.5, linestyle='--')
+        ax.add_patch(arc_left)
+        ax.add_patch(arc_left_back)
+        ellipse_right = Ellipse((1.8, 0), 0.5, 1.6, fill=False, color='#1e293b', linewidth=2.4)
+        ax.add_patch(ellipse_right)
+        ax.set_xlim(-0.1, 2.2)
+        ax.set_ylim(-1.0, 1.0)
+
+    elif shape == 'pyramid':
+        fig, ax = plt.subplots(figsize=(2.2, 1.8), dpi=300)
+        apex = (1.0, 1.6)
+        fl, fr = (0.2, 0.2), (1.5, 0.2)
+        br, bl = (1.8, 0.6), (0.5, 0.6)
+        # Dashed hidden edges
+        ax.plot([bl[0], br[0]], [bl[1], br[1]], color='#94a3b8', linewidth=1.5, linestyle='--')
+        ax.plot([bl[0], fl[0]], [bl[1], fl[1]], color='#94a3b8', linewidth=1.5, linestyle='--')
+        ax.plot([bl[0], apex[0]], [bl[1], apex[1]], color='#94a3b8', linewidth=1.5, linestyle='--')
+        # Solid front edges
+        ax.plot([fl[0], fr[0]], [fl[1], fr[1]], color='#1e293b', linewidth=2.4)
+        ax.plot([fr[0], br[0]], [fr[1], br[1]], color='#1e293b', linewidth=2.4)
+        ax.plot([fl[0], apex[0]], [fl[1], apex[1]], color='#1e293b', linewidth=2.4)
+        ax.plot([fr[0], apex[0]], [fr[1], apex[1]], color='#1e293b', linewidth=2.4)
+        ax.plot([br[0], apex[0]], [br[1], apex[1]], color='#1e293b', linewidth=2.4)
+        ax.set_xlim(0.0, 2.0)
+        ax.set_ylim(0.0, 1.8)
+
+    elif shape == 'sphere':
+        fig, ax = plt.subplots(figsize=(1.8, 1.8), dpi=300)
+        circle = Circle((0, 0), 0.9, fill=False, color='#1e293b', linewidth=2.4)
+        ax.add_patch(circle)
+        eq_front = Arc((0, 0), 1.8, 0.5, angle=0, theta1=180, theta2=360, color='#1e293b', linewidth=1.8)
+        eq_back = Arc((0, 0), 1.8, 0.5, angle=0, theta1=0, theta2=180, color='#94a3b8', linewidth=1.2, linestyle='--')
+        ax.add_patch(eq_front)
+        ax.add_patch(eq_back)
+        ax.set_xlim(-1.1, 1.1)
+        ax.set_ylim(-1.1, 1.1)
+
+    elif shape == 'cone':
+        fig, ax = plt.subplots(figsize=(1.8, 2.0), dpi=300)
+        apex_cone = (1.0, 1.8)
+        ax.plot([0.2, apex_cone[0]], [0.3, apex_cone[1]], color='#1e293b', linewidth=2.4)
+        ax.plot([1.8, apex_cone[0]], [0.3, apex_cone[1]], color='#1e293b', linewidth=2.4)
+        cone_base_front = Arc((1.0, 0.3), 1.6, 0.5, angle=0, theta1=180, theta2=360, color='#1e293b', linewidth=2.4)
+        cone_base_back = Arc((1.0, 0.3), 1.6, 0.5, angle=0, theta1=0, theta2=180, color='#94a3b8', linewidth=1.5, linestyle='--')
+        ax.add_patch(cone_base_front)
+        ax.add_patch(cone_base_back)
+        ax.set_xlim(0.0, 2.0)
+        ax.set_ylim(0.0, 2.0)
+
+    elif shape == 'cube' or shape == 'cuboid':
+        fig, ax = plt.subplots(figsize=(1.8, 1.8), dpi=300)
+        ax.plot([0.2, 1.2, 1.2, 0.2, 0.2], [0.2, 0.2, 1.2, 1.2, 0.2], color='#1e293b', linewidth=2.4)
+        ax.plot([0.2, 0.6], [1.2, 1.6], color='#1e293b', linewidth=2.4)
+        ax.plot([1.2, 1.6], [1.2, 1.6], color='#1e293b', linewidth=2.4)
+        ax.plot([1.2, 1.6], [0.2, 0.6], color='#1e293b', linewidth=2.4)
+        ax.plot([0.6, 1.6], [1.6, 1.6], color='#1e293b', linewidth=2.4)
+        ax.plot([1.6, 1.6], [0.6, 1.6], color='#1e293b', linewidth=2.4)
+        ax.plot([0.2, 0.6], [0.2, 0.6], color='#94a3b8', linewidth=1.5, linestyle='--')
+        ax.plot([0.6, 1.6], [0.6, 0.6], color='#94a3b8', linewidth=1.5, linestyle='--')
+        ax.plot([0.6, 0.6], [0.6, 1.6], color='#94a3b8', linewidth=1.5, linestyle='--')
+        ax.set_xlim(0.0, 1.8)
+        ax.set_ylim(0.0, 1.8)
+
+    else:  # 'circle' or default 2D circle
+        fig, ax = plt.subplots(figsize=(1.8, 1.8), dpi=300)
+        circle = Circle((0, 0), 0.9, fill=False, color='#1e293b', linewidth=2.4)
+        ax.add_patch(circle)
+        ax.set_xlim(-1.1, 1.1)
+        ax.set_ylim(-1.1, 1.1)
+
+    ax.set_aspect('equal')
+    ax.axis('off')
+    plt.tight_layout()
+    plt.savefig(output_path, bbox_inches='tight', transparent=True, dpi=300)
+    plt.close()
+    return output_path
+
+
