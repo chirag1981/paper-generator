@@ -43,9 +43,9 @@ DOCX_BODY_FONT_SIZE = Pt(12)
 DOCX_SUBTITLE_FONT_SIZE = Pt(12)
 
 # Spacing standard tokens (Print-Ready Exam Paper Standards)
-DOCX_LINE_SPACING = 1.15                        # Line spacing within multi-line questions (1.15-1.5)
-DOCX_QUESTION_SPACE_AFTER = Pt(6)               # Consistent space after each question (tightened to prevent single-problem page spill)
-DOCX_QUESTION_SPACING_BEFORE = Pt(4)            # Question space before (tightened to fit neatly into balanced pages)
+DOCX_LINE_SPACING = 1.15                        # Line spacing within multi-line questions (1.15 multiple)
+DOCX_QUESTION_SPACE_AFTER = Pt(12)              # Space after each question / options (12 pt as requested)
+DOCX_QUESTION_SPACING_BEFORE = Pt(0)            # Space before questions (0 pt as requested)
 DOCX_SECTION_SPACE_BEFORE = Pt(12)              # Space before new section heading (Q:1, Q:2, etc.)
 DOCX_SECTION_SPACE_BEFORE_FIRST = Pt(6)         # Space before first section heading after header table
 DOCX_HEADING_SPACE_AFTER = Pt(8)                # Option A: breathing room under heading (was effectively Pt(3) via 60 twips)
@@ -789,7 +789,7 @@ def _is_row_tab_safe(items: list, num_columns: int = None) -> bool:
     return True
 
 
-def _populate_subquestion_cell(cell, item, col_width, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, temp_dir: str = None, sec_title: str = '', q_idx: int = 0, total_cols: int = 2):
+def _populate_subquestion_cell(cell, item, col_width, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, temp_dir: str = None, sec_title: str = '', q_idx: int = 0, total_cols: int = 2, space_after=DOCX_QUESTION_SPACE_AFTER):
     """Fills a single table cell with sub-question content (text, diagrams, blanks)."""
     cell.width = col_width
     set_cell_margins(cell, top=10, bottom=16, left=12, right=12)
@@ -797,7 +797,7 @@ def _populate_subquestion_cell(cell, item, col_width, font_size=DOCX_BODY_FONT_S
     if not isinstance(item, dict):
         p_sub = cell.paragraphs[0]
         p_sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER, spacing=DOCX_LINE_SPACING)
+        fmt_paragraph(p_sub, before=Pt(0), after=space_after, spacing=DOCX_LINE_SPACING)
         render_question_text(p_sub, str(item), font_size=font_size, is_bold=bold, bold_number=True)
         return
 
@@ -901,7 +901,7 @@ def _populate_subquestion_cell(cell, item, col_width, font_size=DOCX_BODY_FONT_S
     else:
         p_sub = cell.paragraphs[0]
         p_sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        fmt_paragraph(p_sub, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER if not q.get('answer_lines') else Pt(2), spacing=DOCX_LINE_SPACING)
+        fmt_paragraph(p_sub, before=Pt(0), after=space_after if not q.get('answer_lines') else Pt(2), spacing=DOCX_LINE_SPACING)
         render_question_text(p_sub, q.get('text', ''), font_size=font_size, is_bold=q.get('is_bold', bold), bold_number=True)
         if q.get('answer_lines'):
             tot_l = q['answer_lines']
@@ -921,7 +921,7 @@ def _populate_subquestion_cell(cell, item, col_width, font_size=DOCX_BODY_FONT_S
                 r_line.font.color.rgb = RGBColor(100, 116, 139)
 
 
-def _render_tab_row(doc, items: list, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, num_columns: int = None):
+def _render_tab_row(doc, items: list, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, num_columns: int = None, space_after=DOCX_QUESTION_SPACE_AFTER):
     """Renders a row of short items as a single tab-aligned paragraph."""
     if not items:
         return
@@ -929,7 +929,7 @@ def _render_tab_row(doc, items: list, font_size=DOCX_BODY_FONT_SIZE, bold: bool 
         num_columns = len(items)
 
     p = doc.add_paragraph()
-    fmt_paragraph(p, before=Pt(0), after=DOCX_QUESTION_SPACE_AFTER, spacing=DOCX_LINE_SPACING)
+    fmt_paragraph(p, before=Pt(0), after=space_after, spacing=DOCX_LINE_SPACING)
 
     col_w = PAGE_CONTENT_WIDTH_INCHES / max(1, num_columns)
     for c_idx in range(1, num_columns):
@@ -957,7 +957,7 @@ def _render_tab_row(doc, items: list, font_size=DOCX_BODY_FONT_SIZE, bold: bool 
             r_bl.font.color.rgb = RGBColor(100, 116, 139)
 
 
-def _render_table_row(doc, items: list, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, num_columns: int = None, temp_dir: str = None, sec_title: str = ''):
+def _render_table_row(doc, items: list, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, num_columns: int = None, temp_dir: str = None, sec_title: str = '', space_after=DOCX_QUESTION_SPACE_AFTER):
     """Renders a row of items as a 1-row borderless table with proper per-cell wrapping."""
     if not items:
         return
@@ -979,12 +979,12 @@ def _render_table_row(doc, items: list, font_size=DOCX_BODY_FONT_SIZE, bold: boo
         cell.width = col_width
         if c_idx < len(items):
             item = items[c_idx]
-            _populate_subquestion_cell(cell, item, col_width, font_size=font_size, bold=bold, temp_dir=temp_dir, sec_title=sec_title, q_idx=c_idx, total_cols=num_columns)
+            _populate_subquestion_cell(cell, item, col_width, font_size=font_size, bold=bold, temp_dir=temp_dir, sec_title=sec_title, q_idx=c_idx, total_cols=num_columns, space_after=space_after)
         else:
             set_cell_margins(cell, top=10, bottom=16, left=12, right=12)
 
 
-def render_row(doc, items: list, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, num_columns: int = None, temp_dir: str = None, sec_title: str = ''):
+def render_row(doc, items: list, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, num_columns: int = None, temp_dir: str = None, sec_title: str = '', space_after=DOCX_QUESTION_SPACE_AFTER):
     """
     Renders a row of items (sub-questions or options).
     Content-aware: uses clean tab-stops if every item in the row is short and tab-safe;
@@ -996,9 +996,9 @@ def render_row(doc, items: list, font_size=DOCX_BODY_FONT_SIZE, bold: bool = Fal
         num_columns = len(items)
 
     if _is_row_tab_safe(items, num_columns=num_columns):
-        _render_tab_row(doc, items, font_size=font_size, bold=bold, num_columns=num_columns)
+        _render_tab_row(doc, items, font_size=font_size, bold=bold, num_columns=num_columns, space_after=space_after)
     else:
-        _render_table_row(doc, items, font_size=font_size, bold=bold, num_columns=num_columns, temp_dir=temp_dir, sec_title=sec_title)
+        _render_table_row(doc, items, font_size=font_size, bold=bold, num_columns=num_columns, temp_dir=temp_dir, sec_title=sec_title, space_after=space_after)
 
 
 def add_single_line(doc, item, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, temp_dir: str = None, q_idx: int = 0, sec_title: str = ''):
@@ -1024,7 +1024,7 @@ def add_single_line(doc, item, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False
         render_question_text(p, text, font_size=font_size, is_bold=bold, bold_number=True)
 
 
-def render_two_column_grid(doc, questions: list, font_size=DOCX_BODY_FONT_SIZE, temp_dir: str = None, sec_title: str = ''):
+def render_two_column_grid(doc, questions: list, font_size=DOCX_BODY_FONT_SIZE, temp_dir: str = None, sec_title: str = '', is_options: bool = False):
     """
     Renders sub-questions in a 2-column grid. Each row of 2 items is
     independently checked for tab-safety — mixed short/long rows in the
@@ -1035,6 +1035,9 @@ def render_two_column_grid(doc, questions: list, font_size=DOCX_BODY_FONT_SIZE, 
 
     for i in range(0, len(questions), 2):
         pair = questions[i:i+2]
+        is_last_row = (i + 2 >= len(questions))
+        row_space_after = DOCX_QUESTION_SPACE_AFTER if (not is_options or is_last_row) else Pt(3)
+
         if isinstance(pair[0], dict):
             texts = [q.get('text', '') for q in pair]
             is_bold = pair[0].get('is_bold', False)
@@ -1046,7 +1049,7 @@ def render_two_column_grid(doc, questions: list, font_size=DOCX_BODY_FONT_SIZE, 
             items_to_render = texts
 
         if len(pair) == 2:
-            render_row(doc, items_to_render, font_size=font_size, bold=is_bold, num_columns=2, temp_dir=temp_dir, sec_title=sec_title)
+            render_row(doc, items_to_render, font_size=font_size, bold=is_bold, num_columns=2, temp_dir=temp_dir, sec_title=sec_title, space_after=row_space_after)
         else:
             # odd item out — render as a single full-width line, not a lone column
             odd_item = pair[0] if (isinstance(pair[0], dict) and (pair[0].get('diagram_type') or pair[0].get('answer_lines'))) else texts[0]
@@ -1075,13 +1078,14 @@ def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizon
 
 def _render_mcq_question(doc, q: dict, q_text: str, q_idx: int = 0, default_layout: str = 'horizontal'):
     """Renders an MCQ question and its options in horizontal, 2-column side-by-side, or vertical layout."""
+    opts = q.get('options', [])
+    q_after = Pt(3) if opts else DOCX_QUESTION_SPACE_AFTER
     p = doc.add_paragraph()
-    fmt_paragraph(p, before=DOCX_QUESTION_SPACING_BEFORE if q_idx > 0 else Pt(0), after=Pt(3), spacing=DOCX_LINE_SPACING, keep_with_next=True)
+    fmt_paragraph(p, before=Pt(0), after=q_after, spacing=DOCX_LINE_SPACING, keep_with_next=bool(opts))
     if QUESTION_PREFIX_REGEX.match(q_text):
         apply_question_indent(p, 0.3)
     render_question_text(p, q_text, font_size=DOCX_BODY_FONT_SIZE, is_bold=True, bold_number=True)
 
-    opts = q.get('options', [])
     if not opts:
         return
 
@@ -1090,17 +1094,17 @@ def _render_mcq_question(doc, q: dict, q_text: str, q_idx: int = 0, default_layo
     is_vertical = layout in ['vertical', 'stacked']
 
     if is_two_col:
-        render_two_column_grid(doc, opts, font_size=DOCX_BODY_FONT_SIZE)
+        render_two_column_grid(doc, opts, font_size=DOCX_BODY_FONT_SIZE, is_options=True)
     elif is_vertical:
         for i, opt in enumerate(opts):
             p_opt = doc.add_paragraph()
             opt_after = DOCX_QUESTION_SPACE_AFTER if i == len(opts) - 1 else Pt(3)
-            fmt_paragraph(p_opt, before=Pt(1), after=opt_after, spacing=1.0, keep_with_next=(i < len(opts) - 1))
+            fmt_paragraph(p_opt, before=Pt(0), after=opt_after, spacing=DOCX_LINE_SPACING, keep_with_next=(i < len(opts) - 1))
             apply_question_indent(p_opt, 0.4)
             render_question_text(p_opt, opt, font_size=DOCX_BODY_FONT_SIZE, bold_number=True)
     else:
         # Default: horizontal 1 row
-        render_row(doc, opts, font_size=DOCX_BODY_FONT_SIZE, bold=False, num_columns=len(opts))
+        render_row(doc, opts, font_size=DOCX_BODY_FONT_SIZE, bold=False, num_columns=len(opts), space_after=DOCX_QUESTION_SPACE_AFTER)
 
 
 def _render_true_false_question(doc, q_text: str, q_idx: int = 0):

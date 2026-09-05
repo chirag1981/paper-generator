@@ -636,7 +636,7 @@
                   const optGridCols = isTwoCol ? 'repeat(2, 1fr)' : (isVert ? '1fr' : `repeat(${rawOpts.length || 4}, 1fr)`);
 
                   if (hasOpts) {
-                    qHtml += `<div style="display: grid; grid-template-columns: ${optGridCols}; gap: 10px; margin: 6px 0 10px 14px; font-size: 12pt;">
+                    qHtml += `<div style="display: grid; grid-template-columns: ${optGridCols}; gap: 10px; margin: 4px 0 12px 14px; font-size: 12pt;">
                       ${rawOpts.map(o => `<div>${formatQuestionTextWithBoldNumber(o)}</div>`).join('')}
                     </div>`;
                   }
