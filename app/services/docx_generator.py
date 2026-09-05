@@ -4,7 +4,7 @@ import logging
 import docx
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
-from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
 from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls
 
@@ -17,6 +17,19 @@ from app.services.geometry_drawer import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_static_img(filename: str) -> str:
+    """Resolves path to static images reliably across working directories."""
+    p1 = os.path.join('static', 'img', filename)
+    if os.path.exists(p1):
+        return os.path.abspath(p1)
+    base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    p2 = os.path.join(base, 'static', 'img', filename)
+    if os.path.exists(p2):
+        return p2
+    return p1
+
 
 # ==================== CONSTANTS & DESIGN TOKENS ====================
 PRIMARY_COLOR = RGBColor(15, 23, 42)
@@ -608,7 +621,12 @@ def _render_side_by_side_section(doc, sec: dict, questions: list, temp_dir: str)
     diag_w = DIAGRAM_WIDTHS.get(diag_type, {}).get('side_by_side', Inches(2.7))
     diag_img_path = os.path.join(temp_dir, f"sec_{diag_type}.png")
 
-    if not _safe_generate_diagram(diag_type, diag_img_path):
+    static_diag = _resolve_static_img(f"{diag_type}.png")
+    if not os.path.exists(static_diag):
+        static_diag = _resolve_static_img(f"figure_{diag_type}.png")
+    if os.path.exists(static_diag):
+        diag_img_path = static_diag
+    elif not _safe_generate_diagram(diag_type, diag_img_path):
         diag_img_path = None
 
     sbs_tbl = doc.add_table(rows=1, cols=2)
@@ -665,7 +683,14 @@ def _render_standalone_diagram(doc, diag_type: str, temp_dir: str):
     """Renders a full-width centered diagram for stacked/standalone sections."""
     diag_w = DIAGRAM_WIDTHS.get(diag_type, {}).get('standalone', Inches(2.8))
     img_path = os.path.join(temp_dir, f"sec_{diag_type}.png")
-    if _safe_generate_diagram(diag_type, img_path) and os.path.exists(img_path):
+    static_diag = _resolve_static_img(f"{diag_type}.png")
+    if not os.path.exists(static_diag):
+        static_diag = _resolve_static_img(f"figure_{diag_type}.png")
+    if os.path.exists(static_diag):
+        img_path = static_diag
+    elif not _safe_generate_diagram(diag_type, img_path):
+        img_path = None
+    if img_path and os.path.exists(img_path):
         p_img = doc.add_paragraph()
         p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
         fmt_paragraph(p_img, before=Pt(0), after=Pt(0), spacing=1.0)
@@ -789,13 +814,13 @@ def _populate_subquestion_cell(cell, item, col_width, font_size=DOCX_BODY_FONT_S
                 break
 
     if q_diag in shape_diagrams:
-        shape_path = os.path.join(temp_dir, f"q_{q_idx}_{q_diag}.png") if temp_dir else f"static/img/shape_{q_diag}.png"
-        static_shape = os.path.join('static', 'img', f"shape_{q_diag}.png")
-        if os.path.exists(static_shape):
-            shape_path = static_shape
-        elif not os.path.exists(shape_path):
-            _safe_generate_diagram(q_diag, shape_path)
+        shape_path = _resolve_static_img(f"shape_{q_diag}.png")
+        if not os.path.exists(shape_path):
+            shape_path = os.path.join(temp_dir, f"q_{q_idx}_{q_diag}.png") if temp_dir else f"static/img/shape_{q_diag}.png"
+            if not os.path.exists(shape_path):
+                _safe_generate_diagram(q_diag, shape_path)
 
+        cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
         p_sub = cell.paragraphs[0]
         p_sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
         fmt_paragraph(p_sub, before=Pt(2), after=DOCX_QUESTION_SPACE_AFTER if not q.get('answer_lines') else Pt(2), spacing=1.0)
@@ -842,9 +867,11 @@ def _populate_subquestion_cell(cell, item, col_width, font_size=DOCX_BODY_FONT_S
                 r_ans.font.color.rgb = RGBColor(100, 116, 139)
 
     elif q_diag in ['clock', 'clock_blank']:
-        clock_path = os.path.join(temp_dir, f"q_{q_idx}_{q_diag}.png") if temp_dir else f"static/img/{q_diag}.png"
+        clock_path = _resolve_static_img(f"{q_diag}.png")
         if not os.path.exists(clock_path):
-            _safe_generate_diagram(q_diag, clock_path)
+            clock_path = os.path.join(temp_dir, f"q_{q_idx}_{q_diag}.png") if temp_dir else f"static/img/{q_diag}.png"
+            if not os.path.exists(clock_path):
+                _safe_generate_diagram(q_diag, clock_path)
         p_clock = cell.paragraphs[0]
         p_clock.alignment = WD_ALIGN_PARAGRAPH.CENTER
         fmt_paragraph(p_clock, before=Pt(2), after=Pt(4), spacing=1.0)
@@ -974,14 +1001,14 @@ def render_row(doc, items: list, font_size=DOCX_BODY_FONT_SIZE, bold: bool = Fal
         _render_table_row(doc, items, font_size=font_size, bold=bold, num_columns=num_columns, temp_dir=temp_dir, sec_title=sec_title)
 
 
-def add_single_line(doc, item, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, temp_dir: str = None, q_idx: int = 0):
+def add_single_line(doc, item, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, temp_dir: str = None, q_idx: int = 0, sec_title: str = ''):
     """Renders an odd trailing item as a single full-width line, not a lone half-width column."""
     if isinstance(item, dict):
         q_text = item.get('text', '')
         q_diag = item.get('diagram_type')
         q_bold = item.get('is_bold', bold)
         if q_diag or item.get('answer_lines') or item.get('supercell_cells'):
-            _render_general_question(doc, item, q_text, temp_dir=temp_dir, q_idx=q_idx)
+            _render_general_question(doc, item, q_text, temp_dir=temp_dir, q_idx=q_idx, sec_title=sec_title)
         else:
             p = doc.add_paragraph()
             fmt_paragraph(p, before=DOCX_QUESTION_SPACING_BEFORE if q_idx > 0 else Pt(0), after=DOCX_QUESTION_SPACE_AFTER, spacing=DOCX_LINE_SPACING)
@@ -1023,7 +1050,7 @@ def render_two_column_grid(doc, questions: list, font_size=DOCX_BODY_FONT_SIZE, 
         else:
             # odd item out — render as a single full-width line, not a lone column
             odd_item = pair[0] if (isinstance(pair[0], dict) and (pair[0].get('diagram_type') or pair[0].get('answer_lines'))) else texts[0]
-            add_single_line(doc, odd_item, font_size=font_size, bold=is_bold, temp_dir=temp_dir, q_idx=i)
+            add_single_line(doc, odd_item, font_size=font_size, bold=is_bold, temp_dir=temp_dir, q_idx=i, sec_title=sec_title)
 
 
 def render_horizontal_row(doc, questions: list, font_size=DOCX_BODY_FONT_SIZE, bold: bool = False, temp_dir: str = None, sec_title: str = ''):
@@ -1115,60 +1142,81 @@ def _render_fill_in_blanks_question(doc, q_text: str, q_idx: int = 0):
     render_question_text(p, q_text, font_size=DOCX_BODY_FONT_SIZE)
 
 
-def _render_general_question(doc, q: dict, q_text: str, temp_dir: str, q_idx: int = 0):
+def _render_general_question(doc, q: dict, q_text: str, temp_dir: str, q_idx: int = 0, sec_title: str = ''):
     """Renders general math, descriptive, construction, or calculation questions."""
+    shape_diagrams = ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']
     diag_type = q.get('diagram_type')
     if not diag_type:
         q_lower = (q_text or '').lower()
-        for s in ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']:
-            if s in q_lower and ('shape' in q_lower or '[' in q_lower):
+        for s in shape_diagrams:
+            if s in q_lower and ('shape' in q_lower or '[' in q_lower or 'shape' in (sec_title or '').lower()):
                 diag_type = s
                 break
-    is_shape = diag_type in ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']
+    is_shape = diag_type in shape_diagrams
 
     if is_shape:
         # Render geometric shape question side-by-side: (1) [Shape Image] = ________________________
-        img_path = os.path.join(temp_dir, f"q_{q_idx}_{diag_type}.png") if temp_dir else f"static/img/shape_{diag_type}.png"
-        static_shape = os.path.join('static', 'img', f"shape_{diag_type}.png")
-        if os.path.exists(static_shape):
-            img_path = static_shape
-        elif not os.path.exists(img_path):
-            _safe_generate_diagram(diag_type, img_path)
+        img_path = _resolve_static_img(f"shape_{diag_type}.png")
+        if not os.path.exists(img_path):
+            img_path = os.path.join(temp_dir, f"q_{q_idx}_{diag_type}.png") if temp_dir else f"static/img/shape_{diag_type}.png"
+            if not os.path.exists(img_path):
+                _safe_generate_diagram(diag_type, img_path)
 
-        tbl_shape = doc.add_table(rows=1, cols=2)
+        tbl_shape = doc.add_table(rows=1, cols=3)
         tbl_shape.alignment = WD_TABLE_ALIGNMENT.LEFT
         tbl_shape.autofit = False
         prevent_row_split(tbl_shape)
         set_no_borders(tbl_shape)
 
-        c_left = tbl_shape.rows[0].cells[0]
-        c_right = tbl_shape.rows[0].cells[1]
-        c_left.width = Inches(2.2)
-        c_right.width = Inches(PAGE_CONTENT_WIDTH_INCHES - 2.2)
-        set_cell_margins(c_left, top=8, bottom=14, left=10, right=10)
-        set_cell_margins(c_right, top=8, bottom=14, left=10, right=10)
+        c_num = tbl_shape.rows[0].cells[0]
+        c_img = tbl_shape.rows[0].cells[1]
+        c_txt = tbl_shape.rows[0].cells[2]
+        c_num.width = Inches(0.45)
+        c_img.width = Inches(1.35)
+        c_txt.width = Inches(PAGE_CONTENT_WIDTH_INCHES - 1.8)
+        set_cell_margins(c_num, top=16, bottom=16, left=6, right=6)
+        set_cell_margins(c_img, top=16, bottom=16, left=6, right=6)
+        set_cell_margins(c_txt, top=16, bottom=16, left=6, right=6)
+        c_num.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        c_img.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        c_txt.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
 
         # Extract question number like (1), 1., etc.
         prefix_match = QUESTION_PREFIX_REGEX.match(q_text)
         num_prefix = prefix_match.group(0).strip() if prefix_match else f"({q_idx+1})"
 
-        p_l = c_left.paragraphs[0]
-        p_l.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        fmt_paragraph(p_l, before=Pt(2), after=Pt(2), spacing=1.0)
-        r_num = p_l.add_run(f"{num_prefix}  ")
+        p_num = c_num.paragraphs[0]
+        p_num.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        fmt_paragraph(p_num, before=Pt(0), after=Pt(0), spacing=1.0)
+        r_num = p_num.add_run(num_prefix)
         set_run_font(r_num, 'Nirmala UI')
         r_num.font.size = DOCX_BODY_FONT_SIZE; r_num.font.bold = True
         r_num.font.color.rgb = PRIMARY_COLOR
 
+        p_img = c_img.paragraphs[0]
+        p_img.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        fmt_paragraph(p_img, before=Pt(0), after=Pt(0), spacing=1.0)
         if os.path.exists(img_path):
-            p_l.add_run().add_picture(img_path, width=Inches(1.2))
+            p_img.add_run().add_picture(img_path, width=Inches(1.1))
 
-        p_r = c_right.paragraphs[0]
-        p_r.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        fmt_paragraph(p_r, before=Pt(8), after=Pt(2), spacing=1.0)
-        has_eq = '=' in q_text
-        eq_str = "=  " if has_eq else ""
-        add_formatted_math_text(p_r, f"{eq_str}____________________________________________", font_size=DOCX_BODY_FONT_SIZE, is_bold=True)
+        p_txt = c_txt.paragraphs[0]
+        p_txt.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        fmt_paragraph(p_txt, before=Pt(0), after=Pt(0), spacing=1.0)
+
+        rem_text = QUESTION_PREFIX_REGEX.sub('', q_text).strip()
+        clean_rem = re.sub(r'\[\s*(?:cylinder|pyramid|circle|sphere|cone|cube|cuboid)[^\]]*\]', '', rem_text, flags=re.IGNORECASE).strip()
+        meaningful_text = re.sub(r'[=\._\s\-]+', '', clean_rem)
+
+        if meaningful_text:
+            add_formatted_math_text(p_txt, clean_rem, font_size=DOCX_BODY_FONT_SIZE, is_bold=True)
+        else:
+            has_eq = '=' in rem_text or not rem_text
+            eq_str = "=  " if has_eq else ""
+            r_blank = p_txt.add_run(f"{eq_str}__________________________________________________")
+            set_run_font(r_blank, 'Nirmala UI')
+            r_blank.font.size = DOCX_BODY_FONT_SIZE
+            r_blank.font.bold = True
+            r_blank.font.color.rgb = MUTED_COLOR
         return
 
     p = doc.add_paragraph()
@@ -1181,7 +1229,15 @@ def _render_general_question(doc, q: dict, q_text: str, temp_dir: str, q_idx: in
     if diag_type:
         diag_w = DIAGRAM_WIDTHS.get(diag_type, {}).get('inline', Inches(2.0))
         img_path = os.path.join(temp_dir, f"inline_{diag_type}.png")
-        if _safe_generate_diagram(diag_type, img_path) and os.path.exists(img_path):
+        static_diag = _resolve_static_img(f"{diag_type}.png")
+        if not os.path.exists(static_diag):
+            static_diag = _resolve_static_img(f"figure_{diag_type}.png")
+        if os.path.exists(static_diag):
+            img_path = static_diag
+        elif not os.path.exists(img_path):
+            _safe_generate_diagram(diag_type, img_path)
+
+        if os.path.exists(img_path):
             p_diag = doc.add_paragraph()
             p_diag.alignment = WD_ALIGN_PARAGRAPH.CENTER
             diag_after = Pt(3) if q.get('answer_lines') else DOCX_QUESTION_SPACE_AFTER
@@ -1233,19 +1289,31 @@ def _render_general_question(doc, q: dict, q_text: str, temp_dir: str, q_idx: in
             r_line.font.size = Pt(9.5)
             r_line.font.color.rgb = RGBColor(100, 116, 139)
 
-def render_vertical_question(doc, q, q_idx: int = 0, temp_dir: str = None, q_type: str = None, default_layout: str = 'horizontal'):
+def render_vertical_question(doc, q, q_idx: int = 0, temp_dir: str = None, q_type: str = None, default_layout: str = 'horizontal', sec_title: str = ''):
     """Renders a single question vertically (one paragraph/line per question)."""
     if isinstance(q, dict):
         q_text = q.get('text', '')
         q_has_opts = bool(q.get('options'))
-        if str(q_type).lower() == 'mcq' or q_has_opts:
+
+        shape_diagrams = ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']
+        diag_type = q.get('diagram_type')
+        if not diag_type:
+            q_lower = (q_text or '').lower()
+            for s in shape_diagrams:
+                if s in q_lower and ('shape' in q_lower or '[' in q_lower or 'shape' in (sec_title or '').lower()):
+                    diag_type = s
+                    break
+
+        if diag_type or q.get('supercell_cells'):
+            _render_general_question(doc, q, q_text, temp_dir, q_idx=q_idx, sec_title=sec_title)
+        elif str(q_type).lower() == 'mcq' or q_has_opts:
             _render_mcq_question(doc, q, q_text, q_idx, default_layout=default_layout)
         elif q_type == 'true_false':
             _render_true_false_question(doc, q_text, q_idx)
         elif q_type == 'fill_in_blanks':
             _render_fill_in_blanks_question(doc, q_text, q_idx)
         else:
-            _render_general_question(doc, q, q_text, temp_dir, q_idx)
+            _render_general_question(doc, q, q_text, temp_dir, q_idx=q_idx, sec_title=sec_title)
     else:
         p = doc.add_paragraph()
         fmt_paragraph(p, before=DOCX_QUESTION_SPACING_BEFORE if q_idx > 0 else Pt(0), after=DOCX_QUESTION_SPACE_AFTER, spacing=DOCX_LINE_SPACING)
@@ -1277,9 +1345,11 @@ def _render_drawing_boxes(doc, sec: dict, temp_dir: str = None):
         for col in tbl_box.columns:
             col.width = col_w_box
 
-        clock_path = os.path.join(temp_dir, 'clock_blank.png') if temp_dir else 'static/img/clock_blank.png'
+        clock_path = _resolve_static_img('clock_blank.png')
         if not os.path.exists(clock_path):
-            _safe_generate_diagram('clock_blank', clock_path)
+            clock_path = os.path.join(temp_dir, 'clock_blank.png') if temp_dir else 'static/img/clock_blank.png'
+            if not os.path.exists(clock_path):
+                _safe_generate_diagram('clock_blank', clock_path)
 
         for i, label in enumerate(boxes):
             c = tbl_box.rows[0].cells[i]
@@ -1437,7 +1507,7 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
 
                 if norm_layout == 'vertical' or len(questions) <= 1:
                     for q_idx, q in enumerate(questions):
-                        render_vertical_question(doc, q, q_idx=q_idx, temp_dir=temp_dir, q_type=q_type, default_layout=sec_opt_layout)
+                        render_vertical_question(doc, q, q_idx=q_idx, temp_dir=temp_dir, q_type=q_type, default_layout=sec_opt_layout, sec_title=title)
                 elif norm_layout == 'horizontal':
                     is_b = questions[0].get('is_bold', False) if (questions and isinstance(questions[0], dict)) else False
                     render_row(doc, questions, font_size=DOCX_BODY_FONT_SIZE, bold=is_b, temp_dir=temp_dir, sec_title=title)
