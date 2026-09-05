@@ -33,9 +33,10 @@ DOCX_SUBTITLE_FONT_SIZE = Pt(12)
 DOCX_LINE_SPACING = 1.15                        # Line spacing within multi-line questions (1.15-1.5)
 DOCX_QUESTION_SPACE_AFTER = Pt(6)               # Consistent space after each question (tightened to prevent single-problem page spill)
 DOCX_QUESTION_SPACING_BEFORE = Pt(4)            # Question space before (tightened to fit neatly into balanced pages)
-DOCX_SECTION_SPACE_BEFORE = Pt(18)              # 1.5 spacing before new section heading (Q:1, Q:2, etc.)
-DOCX_SECTION_SPACE_BEFORE_FIRST = Pt(10)        # Spacing before first section heading after header table
-DOCX_SECTION_SPACE_AFTER = Pt(14)               # 1.5 spacing after section heading before questions
+DOCX_SECTION_SPACE_BEFORE = Pt(12)              # Space before new section heading (Q:1, Q:2, etc.)
+DOCX_SECTION_SPACE_BEFORE_FIRST = Pt(6)         # Space before first section heading after header table
+DOCX_HEADING_SPACE_AFTER = Pt(8)                # Option A: breathing room under heading (was effectively Pt(3) via 60 twips)
+DOCX_SECTION_SPACE_AFTER = DOCX_HEADING_SPACE_AFTER
 
 PAGE_CONTENT_WIDTH_INCHES = 7.2
 PAGE_CONTENT_WIDTH = Inches(PAGE_CONTENT_WIDTH_INCHES)
@@ -539,15 +540,15 @@ def _build_assessment_table(doc, q_summary: list, total_marks: str):
 
 
 def _add_section_heading(doc, title_text: str, marks_text: str, is_first: bool = False):
-    """Renders a section heading with right-aligned marks (e.g. [5], [10]) with 1.5 spacing above and below."""
+    """Renders a section heading with right-aligned marks (e.g. [5], [10]) and 8pt breathing room under heading."""
     title_clean = (title_text or '').strip()
     marks_clean = (marks_text or '').strip()
 
     space_before = DOCX_SECTION_SPACE_BEFORE_FIRST if is_first else DOCX_SECTION_SPACE_BEFORE
-    space_after = DOCX_SECTION_SPACE_AFTER
+    space_after = DOCX_HEADING_SPACE_AFTER
 
     p = doc.add_paragraph()
-    fmt_paragraph(p, before=space_before, after=space_after, spacing=1.5, keep_with_next=True)
+    fmt_paragraph(p, before=space_before, after=space_after, spacing=DOCX_LINE_SPACING, keep_with_next=True)
     p.paragraph_format.tab_stops.add_tab_stop(PAGE_CONTENT_WIDTH, WD_TAB_ALIGNMENT.RIGHT)
 
     r0 = p.add_run(title_clean)
