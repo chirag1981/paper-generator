@@ -33,9 +33,9 @@ DOCX_SUBTITLE_FONT_SIZE = Pt(12)
 DOCX_LINE_SPACING = 1.15                        # Line spacing within multi-line questions (1.15-1.5)
 DOCX_QUESTION_SPACE_AFTER = Pt(6)               # Consistent space after each question (tightened to prevent single-problem page spill)
 DOCX_QUESTION_SPACING_BEFORE = Pt(4)            # Question space before (tightened to fit neatly into balanced pages)
-DOCX_SECTION_SPACE_BEFORE = Pt(12)              # Space before new section heading (Q:1, Q:2, etc.)
-DOCX_SECTION_SPACE_BEFORE_FIRST = Pt(6)         # Space before first section heading after header table
-DOCX_SECTION_SPACE_AFTER = Pt(3)                # Space after section heading
+DOCX_SECTION_SPACE_BEFORE = Pt(18)              # 1.5 spacing before new section heading (Q:1, Q:2, etc.)
+DOCX_SECTION_SPACE_BEFORE_FIRST = Pt(10)        # Spacing before first section heading after header table
+DOCX_SECTION_SPACE_AFTER = Pt(14)               # 1.5 spacing after section heading before questions
 
 PAGE_CONTENT_WIDTH_INCHES = 7.2
 PAGE_CONTENT_WIDTH = Inches(PAGE_CONTENT_WIDTH_INCHES)
@@ -539,44 +539,29 @@ def _build_assessment_table(doc, q_summary: list, total_marks: str):
 
 
 def _add_section_heading(doc, title_text: str, marks_text: str, is_first: bool = False):
-    """Renders a section heading with right-aligned marks (e.g. [5], [10])."""
+    """Renders a section heading with right-aligned marks (e.g. [5], [10]) with 1.5 spacing above and below."""
     title_clean = (title_text or '').strip()
     marks_clean = (marks_text or '').strip()
 
-    tbl = doc.add_table(rows=1, cols=2)
-    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
-    tbl.autofit = False
-    tbl.columns[0].width = Inches(5.8)
-    tbl.columns[1].width = Inches(1.4)
-    tbl.rows[0].cells[0].width = Inches(5.8)
-    tbl.rows[0].cells[1].width = Inches(1.4)
-    prevent_row_split(tbl)
-    set_no_borders(tbl)
-
-    for c in tbl.rows[0].cells:
-        set_cell_margins(c, top=6, bottom=6, left=15, right=15)
-
     space_before = DOCX_SECTION_SPACE_BEFORE_FIRST if is_first else DOCX_SECTION_SPACE_BEFORE
+    space_after = DOCX_SECTION_SPACE_AFTER
 
-    cell0 = tbl.rows[0].cells[0]
-    p0 = cell0.paragraphs[0]
-    fmt_paragraph(p0, before=space_before, after=DOCX_SECTION_SPACE_AFTER, spacing=1.0, keep_with_next=True)
-    r0 = p0.add_run(title_clean)
+    p = doc.add_paragraph()
+    fmt_paragraph(p, before=space_before, after=space_after, spacing=1.5, keep_with_next=True)
+    p.paragraph_format.tab_stops.add_tab_stop(PAGE_CONTENT_WIDTH, WD_TAB_ALIGNMENT.RIGHT)
+
+    r0 = p.add_run(title_clean)
     set_run_font(r0, 'Nirmala UI')
     r0.font.size = DOCX_SECTION_HEADING_FONT_SIZE
     r0.font.bold = True
     r0.font.color.rgb = PRIMARY_COLOR
 
-    cell1 = tbl.rows[0].cells[1]
-    p1 = cell1.paragraphs[0]
-    p1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    fmt_paragraph(p1, before=space_before, after=DOCX_SECTION_SPACE_AFTER, spacing=1.0, keep_with_next=True)
-
     if marks_clean:
         clean_marks = marks_clean.strip('[]() ')
         if clean_marks:
             clean_marks = f'[{clean_marks}]'
-            r1 = p1.add_run(clean_marks)
+            p.add_run('\t')
+            r1 = p.add_run(clean_marks)
             set_run_font(r1, 'Nirmala UI')
             r1.font.size = DOCX_SECTION_HEADING_FONT_SIZE
             r1.font.bold = True

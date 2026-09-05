@@ -513,8 +513,9 @@ body {
   align-items: baseline;
   border-bottom: 1.5px solid #0f172a;
   padding-bottom: 4px;
-  margin-bottom: 12px;
-  margin-top: 16px;
+  margin-bottom: 16px;
+  margin-top: 18px;
+  line-height: 1.5;
 }
 
 .paper-exam-header-bar h3 {
