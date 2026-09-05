@@ -103,5 +103,12 @@ paper-generator/
 
 ---
 
+## 📖 Specifications & Architecture
+- **[System Architecture](file:///e:/Stock%20Market%20Top%20Stocks/Nilam-Papers/ARCHITECTURE.md)**: Architectural blueprints, component design, data flow pipelines, and technical specifications.
+- **[Business Logic & App Rules](file:///e:/Stock%20Market%20Top%20Stocks/Nilam-Papers/BUSINESS_LOGIC_AND_RULES.md)**: Detailed documentation of all business rules, layout hierarchies, OCR auto-healing heuristics, OMML equation formatting, and document compilation constraints.
+
+---
+
 ## 📄 License
 This project is licensed under the MIT License.
+
