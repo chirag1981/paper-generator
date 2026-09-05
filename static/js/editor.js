@@ -734,7 +734,7 @@ function updateQuestionLivePreview(sIdx, qIdx) {
   const q = paperData.sections[sIdx].questions[qIdx];
   const sec = paperData.sections[sIdx];
   
-  const effectiveLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'horizontal';
+  const effectiveLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'vertical';
   const isTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(effectiveLayout);
   const isVert = ['vertical', 'stacked', '1_col'].includes(effectiveLayout);
   let optGridCols = isTwoCol ? 'repeat(2, 1fr)' : (isVert ? '1fr' : `repeat(${q.options?.length || 4}, 1fr)`);
@@ -895,7 +895,7 @@ function renderEditor() {
     `;
 
     // Section Options / Sub-questions Layout Selector
-    const secOptLayout = sec.options_layout || sec.subquestions_layout || 'horizontal';
+    const secOptLayout = sec.options_layout || sec.subquestions_layout || 'vertical';
     const isSecTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(secOptLayout);
     const hasSecOpts = (sec.questions || []).some(q => q.options && q.options.length > 0);
     body.innerHTML += `
@@ -905,9 +905,9 @@ function renderEditor() {
             <i class="fa-solid fa-table-columns" style="color: var(--primary-600);"></i> ${(sec.type === 'mcq' || hasSecOpts) ? 'MCQ Options Layout:' : 'Sub-Questions Layout:'}
           </label>
           <select class="input-control" style="width: auto; font-size: 0.82rem; padding: 3px 8px; font-weight: 600;" onchange="updateSectionOptionsLayout(${sIdx}, this.value)">
-            <option value="horizontal" ${(!isSecTwoCol && secOptLayout !== 'vertical') ? 'selected' : ''}>Horizontal (1 Row - Side-by-side across page)</option>
+            <option value="vertical" ${(!isSecTwoCol && secOptLayout !== 'horizontal') ? 'selected' : ''}>Vertical (Stacked - 1 per line)</option>
             <option value="two_columns" ${isSecTwoCol ? 'selected' : ''}>2 Columns (Side-by-Side / 2x2 Grid)</option>
-            <option value="vertical" ${secOptLayout === 'vertical' ? 'selected' : ''}>Vertical (Stacked - 1 per line)</option>
+            <option value="horizontal" ${secOptLayout === 'horizontal' ? 'selected' : ''}>Horizontal (1 Row - Side-by-side across page)</option>
           </select>
         </div>
         <span style="font-size: 0.76rem; color: #64748b;">Controls 2-column or horizontal grid for options and sub-questions in docx, pdf & preview</span>
@@ -976,7 +976,7 @@ function renderEditor() {
       qRow.style.borderRadius = '6px';
       qRow.style.marginBottom = '10px';
 
-      const effectiveLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'horizontal';
+      const effectiveLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'vertical';
       const isQTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(effectiveLayout);
       const isQVert = ['vertical', 'stacked', '1_col'].includes(effectiveLayout);
       let optGridCols = isQTwoCol ? 'repeat(2, 1fr)' : (isQVert ? '1fr' : `repeat(${q.options?.length || 4}, 1fr)`);
@@ -1045,10 +1045,10 @@ function renderEditor() {
               <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #475569;">
                 <span><i class="fa-solid fa-table-columns"></i> Layout:</span>
                 <select style="font-size: 0.76rem; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc; font-weight: 600;" onchange="updateQuestionOptionsLayout(${sIdx}, ${qIdx}, this.value)">
-                  <option value="" ${!q.options_layout ? 'selected' : ''}>Default (${isSecTwoCol ? '2 Cols' : (secOptLayout === 'vertical' ? 'Vertical' : 'Horizontal')})</option>
-                  <option value="horizontal" ${q.options_layout === 'horizontal' ? 'selected' : ''}>Horizontal (1 Row)</option>
-                  <option value="two_columns" ${['two_columns', '2_columns', '2col', 'two-columns'].includes(q.options_layout) ? 'selected' : ''}>2 Columns (Side-by-Side)</option>
+                  <option value="" ${!q.options_layout ? 'selected' : ''}>Default (${isSecTwoCol ? '2 Cols' : (secOptLayout === 'horizontal' ? 'Horizontal' : 'Vertical')})</option>
                   <option value="vertical" ${q.options_layout === 'vertical' ? 'selected' : ''}>Vertical (Stacked)</option>
+                  <option value="two_columns" ${['two_columns', '2_columns', '2col', 'two-columns'].includes(q.options_layout) ? 'selected' : ''}>2 Columns (Side-by-Side)</option>
+                  <option value="horizontal" ${q.options_layout === 'horizontal' ? 'selected' : ''}>Horizontal (1 Row)</option>
                 </select>
               </div>
               ` : ''}
@@ -1266,6 +1266,8 @@ function addNewSection() {
     title: `Q.${paperData.sections.length + 1} New Section:`,
     marks: '(4)',
     type: 'general',
+    options_layout: 'vertical',
+    subquestions_layout: 'vertical',
     questions: [{ text: '1. Example question text...' }]
   });
   saveToLocal();

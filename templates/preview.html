@@ -468,7 +468,7 @@
             secDiv.appendChild(t);
           }
 
-          const secSubLayout = sec.subquestions_layout || sec.options_layout || 'horizontal';
+          const secSubLayout = sec.subquestions_layout || sec.options_layout || 'vertical';
           const isExplicitTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(secSubLayout);
           const isExplicitHoriz = ['horizontal', '1_row'].includes(secSubLayout);
           const isExplicitVert = ['vertical', 'stacked'].includes(secSubLayout);
@@ -478,8 +478,7 @@
           const isHorizontalSubq = !isMcqSec && questions.length > 1 && !isExplicitVert && (
             isExplicitTwoCol ||
             questions.some(q => q && ['clock', 'clock_blank'].includes(q.diagram_type)) ||
-            (isExplicitHoriz && questions.length <= 4 && !questions.some(q => q && (q.answer_lines || (q.diagram_type && !['clock', 'clock_blank'].includes(q.diagram_type))))) ||
-            (questions.every(q => q && (/^[\(\[]?[a-zA-Z0-9ivxlcdm]+[\)\]\.]/i.test(String(q.text || '').trim()) || String(q.text || '').length < 45)) && !questions.some(q => q && (q.answer_lines || q.diagram_type)))
+            (isExplicitHoriz && questions.length <= 4 && !questions.some(q => q && (q.answer_lines || (q.diagram_type && !['clock', 'clock_blank'].includes(q.diagram_type)))))
           );
 
           if (isHorizontalSubq) {
@@ -630,7 +629,7 @@
                 }
                 
                 if (hasOpts || isMcqSec) {
-                  const optLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'horizontal';
+                  const optLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'vertical';
                   const isTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(optLayout);
                   const isVert = ['vertical', 'stacked', '1_col'].includes(optLayout);
                   const optGridCols = isTwoCol ? 'repeat(2, 1fr)' : (isVert ? '1fr' : `repeat(${rawOpts.length || 4}, 1fr)`);

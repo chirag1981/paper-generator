@@ -1076,7 +1076,7 @@ def _render_horizontal_subquestions(doc, questions: list, layout: str = 'horizon
         render_horizontal_row(doc, questions, font_size=DOCX_BODY_FONT_SIZE, temp_dir=temp_dir, sec_title=sec_title)
 
 
-def _render_mcq_question(doc, q: dict, q_text: str, q_idx: int = 0, default_layout: str = 'horizontal'):
+def _render_mcq_question(doc, q: dict, q_text: str, q_idx: int = 0, default_layout: str = 'vertical'):
     """Renders an MCQ question and its options in horizontal, 2-column side-by-side, or vertical layout."""
     opts = q.get('options', [])
     q_after = Pt(3) if opts else DOCX_QUESTION_SPACE_AFTER
@@ -1089,7 +1089,7 @@ def _render_mcq_question(doc, q: dict, q_text: str, q_idx: int = 0, default_layo
     if not opts:
         return
 
-    layout = q.get('options_layout') or default_layout or 'horizontal'
+    layout = q.get('options_layout') or default_layout or 'vertical'
     is_two_col = layout in ['two_columns', '2_columns', '2col', 'two-columns']
     is_vertical = layout in ['vertical', 'stacked']
 
@@ -1293,7 +1293,7 @@ def _render_general_question(doc, q: dict, q_text: str, temp_dir: str, q_idx: in
             r_line.font.size = Pt(9.5)
             r_line.font.color.rgb = RGBColor(100, 116, 139)
 
-def render_vertical_question(doc, q, q_idx: int = 0, temp_dir: str = None, q_type: str = None, default_layout: str = 'horizontal', sec_title: str = ''):
+def render_vertical_question(doc, q, q_idx: int = 0, temp_dir: str = None, q_type: str = None, default_layout: str = 'vertical', sec_title: str = ''):
     """Renders a single question vertically (one paragraph/line per question)."""
     if isinstance(q, dict):
         q_text = q.get('text', '')
@@ -1474,8 +1474,8 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
 
         render_general_questions = not is_side_by_side
         if render_general_questions:
-            sec_opt_layout = sec.get('options_layout') or sec.get('subquestions_layout') or 'horizontal'
-            sec_sub_layout = sec.get('subquestions_layout') or sec.get('options_layout') or 'horizontal'
+            sec_opt_layout = sec.get('options_layout') or sec.get('subquestions_layout') or 'vertical'
+            sec_sub_layout = sec.get('subquestions_layout') or sec.get('options_layout') or 'vertical'
 
             is_explicit_two_col = sec_sub_layout in ['two_columns', '2_columns', '2col', 'two-columns']
             is_explicit_horiz = sec_sub_layout in ['horizontal', '1_row']
@@ -1495,7 +1495,7 @@ def build_docx_paper(paper_data: dict, output_path: str, temp_dir: str = None) -
                     if len(questions) > 1:
                         if is_explicit_two_col or any(q.get('diagram_type') in ['clock', 'clock_blank'] for q in questions):
                             layout = 'two_columns'
-                        elif is_explicit_horiz or (all(QUESTION_PREFIX_REGEX.match(q.get('text', '').strip()) or len(q.get('text', '')) < 45 for q in questions) and not any(q.get('answer_lines') for q in questions) and len(questions) <= 4):
+                        elif is_explicit_horiz:
                             layout = 'horizontal'
                         else:
                             layout = 'vertical'

@@ -103,7 +103,8 @@ REQUIRED JSON SCHEMA:
       "page_break_before": false,
       "intro_text": "optional intro paragraph for data interpretation/figures e.g. 'In the given figure name the following:'",
       "diagram_type": "optional section diagram: pictograph | zigzag | geometry_lines | clock_blank | clock",
-      "subquestions_layout": "optional: horizontal | two_columns | vertical",
+      "options_layout": "optional: vertical | two_columns | horizontal (default is vertical)",
+      "subquestions_layout": "optional: vertical | two_columns | horizontal (default is vertical)",
       "table_data": {{
         "headers": ["S.No", "Item", "CP (₹)", "SP (₹)", "Profit", "Loss"],
         "rows": [["A", "Ice-cream", "5", "10", "", ""]]
@@ -113,6 +114,7 @@ REQUIRED JSON SCHEMA:
           "text": "1) Name the line segments in the given figure...",
           "options": ["(a) ...", "(b) ..."],
           "diagram_type": "optional question diagram: zigzag | geometry_lines | pictograph | clock_blank | clock",
+          "options_layout": "optional: vertical | two_columns | horizontal (default is vertical)",
           "is_bold": true,
           "answer_lines": 2
         }}
@@ -143,7 +145,9 @@ CRITICAL RULES FOR FIGURES & DIAGRAMS (DO NOT OUTPUT TEXT PLACEHOLDERS):
    - Do NOT put existing question diagrams, shapes, or clock faces inside drawing_boxes!
 5. CAPTURE ALL CONTENT VERBATIM:
    - Capture all sections, marks (e.g. (8), [4]), fractions (e.g. "3/4 + 7/4 = ______"), tables, and sub-questions from Page 1 all the way to Page {num_pages}.
-6. Output MUST be RAW JSON only. Do not add markdown code fences or backticks.
+6. DEFAULT VERTICAL LAYOUT:
+   - For all MCQ options and subquestions, default to "vertical" (Stacked - 1 per line) unless the section specifically requires clocks or side-by-side display.
+7. Output MUST be RAW JSON only. Do not add markdown code fences or backticks.
 """
 
     env_model = os.environ.get('GEMINI_MODEL', '').strip()
@@ -315,6 +319,15 @@ def sanitize_and_fix_paper_diagrams(paper: Dict[str, Any]) -> Dict[str, Any]:
             if q.get("answer_prefix", "").strip().lower() in ["ans:", "ans.", "ans", "answer:", "answer"]:
                 q.pop("answer_prefix", None)
 
+        # Ensure default options_layout and subquestions_layout are Vertical (Stacked - 1 per line)
+        if not sec.get("options_layout"):
+            sec["options_layout"] = "vertical"
+        if not sec.get("subquestions_layout"):
+            if is_clock_sec:
+                sec["subquestions_layout"] = "horizontal"
+            else:
+                sec["subquestions_layout"] = "vertical"
+
         # Auto-heal missing section marks from question count so total marks are never understated
         sec_marks = str(sec.get("marks") or "").strip()
         if not sec_marks or sec_marks in ["", "0", "[0]", "(0)"]:
@@ -330,7 +343,7 @@ def sanitize_and_fix_paper_diagrams(paper: Dict[str, Any]) -> Dict[str, Any]:
 
 def get_sample_std6_maths_paper():
     """Returns the high-fidelity preloaded Std 6 Maths Exam structure matching user exam paper."""
-    return {
+    paper = {
         "metadata": {
             "exam_title": "1st Semester Examination – 2026",
             "standard": "Std. 6th",
@@ -522,4 +535,6 @@ def get_sample_std6_maths_paper():
             }
         ]
     }
+    return sanitize_and_fix_paper_diagrams(paper)
+
 
