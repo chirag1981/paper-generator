@@ -45,4 +45,4 @@ exports/*
 *.jpg
 *.jpeg
 1/
-test_*
+/test_*

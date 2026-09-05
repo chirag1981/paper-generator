@@ -32,7 +32,7 @@
   <div id="previewHeader" style="margin-bottom: 20px;">
     <!-- Centered Exam Title -->
     <h1 id="pvTitle" style="font-size: 1.35rem; font-weight: 800; color: #0f172a; text-align: center; margin: 0 0 8px 0;">2nd Unit Test 2025-2026</h1>
-    <div style="height: 2px; background: #0284c7; width: 100%; margin-bottom: 10px;"></div>
+    <div style="height: 2px; background: var(--primary-500); width: 100%; margin-bottom: 10px;"></div>
     
     <!-- Subject & Std -->
     <div id="pvSubject" style="text-align: center; font-size: 1.05rem; font-weight: 800; color: #0f172a; margin-bottom: 2px;">Subject: ENV</div>
@@ -63,27 +63,89 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/editor.js') }}"></script>
+<script src="{{ url_for('static', filename='js/editor.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
+  // Self-contained math fraction formatter so preview never depends on editor.js load timing
+  function formatMathFractions(text) {
+    if (!text) return '';
+    let s = String(text);
+    s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    s = s.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '<span class="math-fraction"><span class="num">$1</span><span class="den">$2</span></span>');
+    s = s.replace(/(^|[\s\+\-\=\(\[\,\:\;\&])(\d+)\/(\d+)(?![\/\d])/g, '$1<span class="math-fraction"><span class="num">$2</span><span class="den">$3</span></span>');
+    return s;
+  }
+
+  // Regex to recognize question numbering prefixes like 1., (1), 1), a., (a), A., (A), i., (i), Q.1, Q-1
+  const QUESTION_PREFIX_JS_REGEX = /^\s*(?:(?:Q|Que|Question|પ્રશ્ન)[\.\-\s]*[\d\u0AE6-\u0AEF]+[\.\:\)]*|[\(\[]\s*(?:[\d\u0AE6-\u0AEF]+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)\s*[\)\]][\.\:]*|[\d\u0AE6-\u0AEF]+[\.\)\:]+|[a-zA-Z][\.\)]+|[ivxlcdmIVXLCDM]+[\.\)]+)\s*/;
+
+  function formatQuestionTextWithBoldNumber(rawText) {
+    if (!rawText) return '';
+    const textStr = String(rawText);
+    const m = textStr.match(QUESTION_PREFIX_JS_REGEX);
+    if (m) {
+      const numPrefix = m[0];
+      const remText = textStr.slice(numPrefix.length);
+      const formattedRem = formatMathFractions(remText);
+      return `<strong>${numPrefix}</strong>${formattedRem}`;
+    }
+    return formatMathFractions(textStr);
+  }
+
+  // Safe initialization that works whether DOMContentLoaded fired already or not
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPreview();
+    });
+  } else {
     loadPreview();
-  });
+  }
 
   function loadPreview() {
-    let paper = JSON.parse(localStorage.getItem('current_paper') || 'null');
-    if (!paper) {
-      fetch('/api/sample-paper')
-        .then(r => r.json())
-        .then(d => {
-          if (d.success) {
-            paperData = d.paper;
-            renderPreviewPaper(d.paper);
-          }
-        });
-    } else {
+    let paper = null;
+    try {
+      const stored = localStorage.getItem('current_paper');
+      if (stored && stored !== 'undefined' && stored !== 'null') {
+        paper = JSON.parse(stored);
+      }
+    } catch(e) {
+      console.warn('Error reading current_paper from localStorage:', e);
+    }
+
+    const hasSections = paper && Array.isArray(paper.sections) && paper.sections.length > 0;
+
+    if (hasSections) {
       paperData = paper;
       renderPreviewPaper(paper);
+    } else {
+      // 1. Try server current paper (synced from AI OCR or session cache)
+      fetch('/api/current-paper')
+        .then(r => r.json())
+        .then(d => {
+          if (d.success && d.paper && Array.isArray(d.paper.sections) && d.paper.sections.length > 0) {
+            paperData = d.paper;
+            try { localStorage.setItem('current_paper', JSON.stringify(d.paper)); } catch(e) {}
+            renderPreviewPaper(d.paper);
+          } else {
+            // 2. Fall back to sample paper if no active scan
+            fetchSamplePaperFallback();
+          }
+        })
+        .catch(() => {
+          fetchSamplePaperFallback();
+        });
     }
+  }
+
+  function fetchSamplePaperFallback() {
+    fetch('/api/sample-paper')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.paper) {
+          paperData = d.paper;
+          renderPreviewPaper(d.paper);
+        }
+      })
+      .catch(err => console.error('Error fetching sample paper:', err));
   }
 
   function getDynamicQuestionSummary(paper) {
@@ -203,9 +265,11 @@
     }
 
     const container = document.getElementById('previewSections');
+    if (!container) return;
     container.innerHTML = '';
 
-    const sections = paper.sections || [];
+    const rawSections = paper && paper.sections;
+    const sections = Array.isArray(rawSections) ? rawSections : Object.values(rawSections || {});
     if (sections.length === 0) {
       container.innerHTML = `
         <div style="text-align: center; padding: 60px 20px; color: #64748b;">
@@ -219,428 +283,455 @@
     }
 
     sections.forEach((sec, idx) => {
-      const secDiv = document.createElement('div');
-      secDiv.style.marginBottom = '20px';
-      
-      let marksDisplay = sec.marks || '';
-      if (marksDisplay) {
-        marksDisplay = marksDisplay.trim().replace(/^\[|\]$/g, '');
-        if (!marksDisplay.startsWith('(')) {
-          marksDisplay = `(${marksDisplay})`;
-        }
-      }
-
-      // Clean exam section header (Bold title left, marks right)
-      const head = document.createElement('div');
-      head.className = 'paper-exam-header-bar';
-      head.innerHTML = `
-        <h3>${sec.title || 'Section'}</h3>
-        <span class="paper-marks">${marksDisplay}</span>
-      `;
-      secDiv.appendChild(head);
-
-      if (sec.options_box) {
-        const optBox = document.createElement('div');
-        optBox.style.background = '#f1f5f9';
-        optBox.style.border = '1px dashed #64748b';
-        optBox.style.padding = '8px';
-        optBox.style.textAlign = 'center';
-        optBox.style.fontWeight = '600';
-        optBox.style.borderRadius = '4px';
-        optBox.style.marginBottom = '12px';
-        optBox.innerHTML = typeof formatMathFractions === 'function' ? formatMathFractions(sec.options_box) : sec.options_box;
-        secDiv.appendChild(optBox);
-      }
-
-      if (sec.intro_text) {
-        const pIn = document.createElement('p');
-        pIn.style.marginBottom = '8px';
-        pIn.style.fontSize = '12pt';
-        pIn.innerHTML = typeof formatMathFractions === 'function' ? formatMathFractions(sec.intro_text) : sec.intro_text;
-        secDiv.appendChild(pIn);
-      }
-
-      const questions = sec.questions || [];
-      const hasSecDiagram = Boolean(sec.diagram_type);
-      const isSideBySide = hasSecDiagram && questions.length > 0 && sec.diagram_layout !== 'stacked';
-
-      if (isSideBySide) {
-        // Options on Left, Figure on Right (Space-saving layout)
-        const sbsGrid = document.createElement('div');
-        sbsGrid.style.display = 'grid';
-        sbsGrid.style.gridTemplateColumns = '1.3fr 1fr';
-        sbsGrid.style.gap = '20px';
-        sbsGrid.style.alignItems = 'center';
-        sbsGrid.style.margin = '10px 0 16px';
-
-        // Left Column: Options/Questions vertically
-        const leftCol = document.createElement('div');
-        leftCol.style.display = 'flex';
-        leftCol.style.flexDirection = 'column';
-        leftCol.style.gap = '8px';
-
-        questions.forEach(q => {
-          const qDiv = document.createElement('div');
-          qDiv.style.fontSize = '12pt';
-          qDiv.style.fontWeight = q.is_bold ? '700' : '500';
-          const formattedText = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
-          const hasInlineBlank = String(q.text || '').includes('____') || String(q.text || '').includes('.......');
-          let qHtml = '';
-          if (q.answer_lines && !hasInlineBlank) {
-            qHtml = `<div style="display: flex; align-items: flex-end; gap: 8px; width: 100%;">
-              <span style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</span>
-              <span style="flex: 1; border-bottom: 1.5px solid #94a3b8; min-width: 60px; height: 1em; margin-bottom: 2px;"></span>
-            </div>`;
-            for (let l = 1; l < q.answer_lines; l++) {
-              qHtml += `<div style="border-bottom: 1.5px solid #94a3b8; width: 100%; height: 1.5em; margin-top: 4px;"></div>`;
-            }
-          } else {
-            qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
+      try {
+        if (!sec) return;
+        const secDiv = document.createElement('div');
+        secDiv.style.marginBottom = '24px';
+        container.appendChild(secDiv);
+        
+        let marksDisplay = String(sec.marks !== undefined && sec.marks !== null ? sec.marks : '').trim();
+        if (marksDisplay) {
+          marksDisplay = marksDisplay.replace(/^\[|\]$/g, '');
+          if (!marksDisplay.startsWith('(')) {
+            marksDisplay = `(${marksDisplay})`;
           }
-          qDiv.innerHTML = qHtml;
-          leftCol.appendChild(qDiv);
-        });
-        sbsGrid.appendChild(leftCol);
-
-        // Right Column: Figure
-        const rightCol = document.createElement('div');
-        rightCol.style.textAlign = 'center';
-        rightCol.style.display = 'flex';
-        rightCol.style.alignItems = 'center';
-        rightCol.style.justifyContent = 'center';
-
-        let imgSrc = '';
-        if (sec.diagram_type === 'geometry_lines') imgSrc = '/static/img/figure_q3c.png';
-        else if (sec.diagram_type === 'zigzag') imgSrc = '/static/img/figure_q3a3.png';
-        else if (sec.diagram_type === 'pictograph') imgSrc = '/static/img/pictograph_clean.png';
-        else if (sec.diagram_type === 'clock' || sec.diagram_type === 'clock_blank') imgSrc = '/static/img/clock_blank.png';
-
-        if (imgSrc) {
-          const img = document.createElement('img');
-          img.src = imgSrc;
-          img.style.maxWidth = '100%';
-          img.style.maxHeight = '145px';
-          img.style.objectFit = 'contain';
-          img.style.borderRadius = '4px';
-          rightCol.appendChild(img);
-        }
-        sbsGrid.appendChild(rightCol);
-
-        secDiv.appendChild(sbsGrid);
-      } else {
-        if (sec.diagram_type === 'pictograph') {
-          const img = document.createElement('img');
-          img.src = '/static/img/pictograph_clean.png';
-          img.style.width = '100%';
-          img.style.borderRadius = '6px';
-          img.style.margin = '10px 0';
-          secDiv.appendChild(img);
-        } else if (sec.diagram_type === 'geometry_lines') {
-          const img = document.createElement('img');
-          img.src = '/static/img/figure_q3c.png';
-          img.style.width = '70%';
-          img.style.display = 'block';
-          img.style.margin = '10px auto';
-          secDiv.appendChild(img);
-        } else if (sec.diagram_type === 'zigzag') {
-          const img = document.createElement('img');
-          img.src = '/static/img/figure_q3a3.png';
-          img.style.width = '55%';
-          img.style.display = 'block';
-          img.style.margin = '10px auto';
-          secDiv.appendChild(img);
-        } else if (sec.diagram_type === 'clock' || sec.diagram_type === 'clock_blank') {
-          const img = document.createElement('img');
-          img.src = '/static/img/clock_blank.png';
-          img.style.width = '140px';
-          img.style.height = '140px';
-          img.style.display = 'block';
-          img.style.margin = '10px auto';
-          secDiv.appendChild(img);
         }
 
-        // Table Data (e.g. Q-2 (B) Complete the following table)
-        if (sec.table_data) {
-          const t = document.createElement('table');
-          t.style.width = '100%';
-          t.style.borderCollapse = 'collapse';
-          t.style.border = '1.5px solid #000';
-          t.style.margin = '10px 0 16px';
-          t.style.fontSize = '12pt';
-          
-          const headers = sec.table_data.headers || [];
-          const rows = sec.table_data.rows || [];
+        // Clean exam section header (Bold title left, marks right)
+        const head = document.createElement('div');
+        head.className = 'paper-exam-header-bar';
+        head.innerHTML = `
+          <h3>${sec.title || 'Section'}</h3>
+          <span class="paper-marks">${marksDisplay}</span>
+        `;
+        secDiv.appendChild(head);
 
-          let tableHtml = `
-            <thead>
-              <tr style="background: #f1f5f9; font-weight: bold;">
-                ${headers.map(h => `<th style="border: 1.5px solid #000; padding: 6px 10px; text-align: center;">${typeof formatMathFractions === 'function' ? formatMathFractions(h) : h}</th>`).join('')}
-              </tr>
-            </thead>
-            <tbody>
-              ${rows.map((r, i) => `
-                <tr style="background: ${i%2===1 ? '#f8fafc' : '#ffffff'};">
-                  ${headers.map((_, cIdx) => `
-                    <td style="border: 1.5px solid #000; padding: 6px 10px; text-align: ${cIdx===1?'left':'center'}; font-weight: ${cIdx<=1?'bold':'normal'};">
-                      ${r[cIdx] ? (typeof formatMathFractions === 'function' ? formatMathFractions(r[cIdx]) : r[cIdx]) : '&nbsp;'}
-                    </td>
-                  `).join('')}
-                </tr>
-              `).join('')}
-            </tbody>
-          `;
-          t.innerHTML = tableHtml;
-          secDiv.appendChild(t);
+        if (sec.options_box) {
+          const optBox = document.createElement('div');
+          optBox.style.background = '#f1f5f9';
+          optBox.style.border = '1px dashed #64748b';
+          optBox.style.padding = '8px';
+          optBox.style.textAlign = 'center';
+          optBox.style.fontWeight = '600';
+          optBox.style.borderRadius = '4px';
+          optBox.style.marginBottom = '12px';
+          optBox.innerHTML = typeof formatMathFractions === 'function' ? formatMathFractions(sec.options_box) : sec.options_box;
+          secDiv.appendChild(optBox);
         }
 
-        const secSubLayout = sec.subquestions_layout || sec.options_layout || 'horizontal';
-        const isExplicitTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(secSubLayout);
-        const isExplicitHoriz = ['horizontal', '1_row'].includes(secSubLayout);
-        const isExplicitVert = ['vertical', 'stacked'].includes(secSubLayout);
-        const hasOptionsAny = questions.some(q => q.options && q.options.length > 0);
-        const isMcqSec = String(sec.type || '').toLowerCase() === 'mcq' || hasOptionsAny;
+        if (sec.intro_text) {
+          const pIn = document.createElement('p');
+          pIn.style.marginBottom = '8px';
+          pIn.style.fontSize = '12pt';
+          pIn.innerHTML = typeof formatMathFractions === 'function' ? formatMathFractions(sec.intro_text) : sec.intro_text;
+          secDiv.appendChild(pIn);
+        }
 
-        const isHorizontalSubq = !isMcqSec && questions.length > 1 && !isExplicitVert && (
-          isExplicitTwoCol ||
-          questions.some(q => ['clock', 'clock_blank'].includes(q.diagram_type)) ||
-          (isExplicitHoriz && questions.length <= 4 && !questions.some(q => q.answer_lines || (q.diagram_type && !['clock', 'clock_blank'].includes(q.diagram_type)))) ||
-          (questions.every(q => /^[\(\[]?[a-zA-Z0-9ivxlcdm]+[\)\]\.]/i.test((q.text || '').trim()) || (q.text || '').length < 45) && !questions.some(q => q.answer_lines || q.diagram_type))
-        );
+        const rawQuestions = sec.questions;
+        const questions = Array.isArray(rawQuestions) ? rawQuestions : [];
+        const hasSecDiagram = Boolean(sec.diagram_type);
+        const isSideBySide = hasSecDiagram && questions.length > 0 && sec.diagram_layout !== 'stacked';
 
-        if (isHorizontalSubq) {
-          // Render subquestions in grid
-          const subGrid = document.createElement('div');
-          subGrid.className = 'subq-horizontal-grid';
-          const numCols = isExplicitTwoCol ? 2 : (isExplicitHoriz ? questions.length : Math.min(questions.length, 4));
-          subGrid.style.display = 'grid';
-          subGrid.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`;
-          subGrid.style.gap = '14px';
-          subGrid.style.margin = '8px 0 12px';
+        if (isSideBySide) {
+          // Options on Left, Figure on Right (Space-saving layout)
+          const sbsGrid = document.createElement('div');
+          sbsGrid.style.display = 'grid';
+          sbsGrid.style.gridTemplateColumns = '1.3fr 1fr';
+          sbsGrid.style.gap = '20px';
+          sbsGrid.style.alignItems = 'center';
+          sbsGrid.style.margin = '10px 0 16px';
 
-          questions.forEach((q, qIdx) => {
-            const qDiv = document.createElement('div');
-            qDiv.style.fontSize = '12pt';
-            qDiv.style.fontWeight = q.is_bold ? '700' : '500';
-            let content = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
-            const hasInlineBlank = String(q.text || '').includes('____') || String(q.text || '').includes('.......');
-            if (q.answer_lines && !hasInlineBlank) {
-              content = `<div style="display: flex; align-items: flex-end; gap: 8px; width: 100%;">
-                <span>${content}</span>
-                <span style="flex: 1; border-bottom: 1.5px solid #94a3b8; min-width: 60px; height: 1em; margin-bottom: 2px;"></span>
-              </div>`;
-              for (let l = 1; l < q.answer_lines; l++) {
-                content += `<div style="border-bottom: 1.5px solid #94a3b8; width: 100%; height: 1.5em; margin-top: 4px;"></div>`;
-              }
-            }
+          // Left Column: Options/Questions vertically
+          const leftCol = document.createElement('div');
+          leftCol.style.display = 'flex';
+          leftCol.style.flexDirection = 'column';
+          leftCol.style.gap = '8px';
 
-            const isShape = ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].includes(q.diagram_type) ||
-              ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].some(s => (q.text || '').toLowerCase().includes(s) && ((q.text || '').includes('[') || (sec.title || '').toLowerCase().includes('shape')));
-
-            if (isShape) {
-              let detectedShape = q.diagram_type;
-              if (!detectedShape || !['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].includes(detectedShape)) {
-                for (const s of ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']) {
-                  if ((q.text || '').toLowerCase().includes(s)) {
-                    detectedShape = s;
-                    break;
-                  }
-                }
-              }
-              const shapeSrc = `/static/img/shape_${detectedShape || 'cylinder'}.png`;
-              let cleanText = (q.text || '').replace(/\[\s*(?:cylinder|pyramid|circle|sphere|cone|cube|cuboid)[^\]]*\]/gi, '').trim();
-              const prefixMatch = cleanText.match(/^\s*[\(\[]?([a-zA-Z]|\d+|[ivxlcdmIVXLCDM]+)[\)\]\.]\s*/);
-              const numPrefix = prefixMatch ? prefixMatch[0].trim() : `(${qIdx+1})`;
-              const afterPrefix = cleanText.replace(/^\s*[\(\[]?([a-zA-Z]|\d+|[ivxlcdmIVXLCDM]+)[\)\]\.]\s*/, '').trim();
-              const hasEq = cleanText.includes('=') || !afterPrefix;
-              const hasCustomText = afterPrefix.replace(/[=\._\s\-]+/g, '').trim().length > 0;
-
-              content = `
-                <div style="display: flex; align-items: center; gap: 10px; margin: 4px 0;">
-                  <span style="font-weight: 700; font-size: 12pt; min-width: 26px;">${numPrefix}</span>
-                  <img src="${shapeSrc}" style="max-height: 52px; max-width: 85px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px;">
-                  ${hasCustomText ? `<span style="font-size: 11pt; font-weight: 600;">${afterPrefix}</span>` : `
-                    <span style="font-size: 12pt; font-weight: 600;">${hasEq ? '=' : ''}</span>
-                    <span style="flex: 1; border-bottom: 1.5px solid #000; height: 1.2em; min-width: 70px; margin-bottom: 2px;"></span>
-                  `}
-                </div>
-              `;
-            } else if (['clock', 'clock_blank'].includes(q.diagram_type)) {
-              content = `
-                <div style="text-align: center; margin-bottom: 6px;">
-                  <img src="/static/img/clock_blank.png" style="width: 130px; height: 130px; display: inline-block; object-fit: contain;">
-                </div>
-                <div style="text-align: center; font-size: 11pt; font-weight: 700;">${content}</div>
-              `;
-            } else if (q.diagram_type === 'zigzag') {
-              content = `
-                <div style="margin-bottom: 4px; text-align: center;"><img src="/static/img/figure_q3a3.png" style="max-height: 50px; display: inline-block;"></div>
-                <div>${content}</div>
-              `;
-            } else if (q.diagram_type === 'geometry_lines') {
-              content = `
-                <div style="margin-bottom: 4px; text-align: center;"><img src="/static/img/figure_q3c.png" style="max-height: 55px; display: inline-block;"></div>
-                <div>${content}</div>
-              `;
-            }
-            qDiv.innerHTML = content;
-            subGrid.appendChild(qDiv);
-          });
-
-          secDiv.appendChild(subGrid);
-        } else {
-          questions.forEach(q => {
-            const qDiv = document.createElement('div');
-            qDiv.style.marginBottom = '10px';
-            qDiv.style.fontSize = '12pt';
-            
-            const formattedText = typeof formatMathFractions === 'function' ? formatMathFractions(q.text) : q.text;
-            const hasInlineBlank = String(q.text || '').includes('____') || String(q.text || '').includes('.......');
-            const hasOpts = Array.isArray(q.options) && q.options.length > 0;
-
-            const isShape = ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].includes(q.diagram_type) ||
-              ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].some(s => formattedText.toLowerCase().includes(s) && (formattedText.includes('[') || (sec.title || '').toLowerCase().includes('shape')));
-
-            if (isShape) {
-              let detectedShape = q.diagram_type;
-              if (!detectedShape || !['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].includes(detectedShape)) {
-                for (const s of ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']) {
-                  if (formattedText.toLowerCase().includes(s)) {
-                    detectedShape = s;
-                    break;
-                  }
-                }
-              }
-              const shapeSrc = `/static/img/shape_${detectedShape || 'cylinder'}.png`;
-              let cleanText = formattedText.replace(/\[\s*(?:cylinder|pyramid|circle|sphere|cone|cube|cuboid)[^\]]*\]/gi, '').trim();
-              const prefixMatch = cleanText.match(/^\s*[\(\[]?([a-zA-Z]|\d+|[ivxlcdmIVXLCDM]+)[\)\]\.]\s*/);
-              const numPrefix = prefixMatch ? prefixMatch[0] : `(${qIdx+1})`;
-              const hasEq = cleanText.includes('=');
-
-              qHtml = `
-                <div style="display: flex; align-items: center; gap: 14px; margin: 12px 0;">
-                  <span style="font-weight: 700; font-size: 12pt; min-width: 26px;">${numPrefix}</span>
-                  <img src="${shapeSrc}" style="max-height: 52px; max-width: 90px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px;">
-                  ${hasEq ? '<span style="font-weight: 700; font-size: 12pt;">=</span>' : ''}
-                  <span style="flex: 1; border-bottom: 1.5px solid #94a3b8; min-width: 150px; height: 1em; margin-bottom: 4px;"></span>
-                </div>
-              `;
-              qDiv.innerHTML = qHtml;
-              secDiv.appendChild(qDiv);
-              return;
-            }
-
-            let qHtml = '';
-            if (q.answer_lines && !hasInlineBlank && !hasOpts) {
-              qHtml = `<div style="display: flex; align-items: flex-end; gap: 8px; width: 100%;">
-                <span style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</span>
-                <span style="flex: 1; border-bottom: 1.5px solid #94a3b8; min-width: 100px; height: 1em; margin-bottom: 2px;"></span>
-              </div>`;
-              for (let l = 1; l < q.answer_lines; l++) {
-                qHtml += `<div style="border-bottom: 1.5px solid #94a3b8; width: 100%; height: 1.6em; margin-top: 6px;"></div>`;
-              }
-            } else {
-              qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
-            }
-            
-            if (hasOpts || isMcqSec) {
-              const optLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'horizontal';
-              const isTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(optLayout);
-              const isVert = ['vertical', 'stacked', '1_col'].includes(optLayout);
-              const optGridCols = isTwoCol ? 'repeat(2, 1fr)' : (isVert ? '1fr' : `repeat(${(q.options && q.options.length) || 4}, 1fr)`);
-
-              if (hasOpts) {
-                qHtml += `<div style="display: grid; grid-template-columns: ${optGridCols}; gap: 10px; margin: 6px 0 10px 14px; font-size: 12pt;">
-                  ${q.options.map(o => `<div>${typeof formatMathFractions === 'function' ? formatMathFractions(o) : o}</div>`).join('')}
+          questions.forEach((rawQ, qIdx) => {
+            try {
+              if (!rawQ) return;
+              const q = typeof rawQ === 'string' ? { text: rawQ } : rawQ;
+              const qDiv = document.createElement('div');
+              qDiv.style.fontSize = '12pt';
+              qDiv.style.fontWeight = q.is_bold ? '700' : '500';
+              const rawText = String(q.text !== undefined && q.text !== null ? q.text : '');
+              const formattedText = formatQuestionTextWithBoldNumber(rawText);
+              const hasInlineBlank = rawText.includes('____') || rawText.includes('.......');
+              let qHtml = '';
+              if (q.answer_lines && !hasInlineBlank) {
+                qHtml = `<div style="display: flex; align-items: flex-end; gap: 8px; width: 100%;">
+                  <span style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</span>
+                  <span style="flex: 1; border-bottom: 1.5px solid #94a3b8; min-width: 60px; height: 1em; margin-bottom: 2px;"></span>
                 </div>`;
+                for (let l = 1; l < q.answer_lines; l++) {
+                  qHtml += `<div style="border-bottom: 1.5px solid #94a3b8; width: 100%; height: 1.5em; margin-top: 4px;"></div>`;
+                }
+              } else {
+                qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
               }
-            } else if (sec.type === 'true_false') {
-              qHtml = `<div style="display: flex; justify-content: space-between;"><span>${formattedText}</span> <span style="color: #94a3b8; font-weight: bold;">[ &nbsp; &nbsp; &nbsp; ]</span></div>`;
+              qDiv.innerHTML = qHtml;
+              leftCol.appendChild(qDiv);
+            } catch (qErr) {
+              console.error('Error rendering side-by-side question', qIdx, qErr);
             }
-
-            if (q.diagram_type === 'zigzag') {
-              qHtml += `<img src="/static/img/figure_q3a3.png" style="width: 50%; display: block; margin: 8px auto; border-radius: 4px;">`;
-            } else if (q.diagram_type === 'geometry_lines') {
-              qHtml += `<img src="/static/img/figure_q3c.png" style="width: 65%; display: block; margin: 8px auto; border-radius: 4px;">`;
-            } else if (q.diagram_type === 'pictograph') {
-              qHtml += `<img src="/static/img/pictograph_clean.png" style="width: 90%; display: block; margin: 8px auto; border-radius: 4px;">`;
-            } else if (q.diagram_type === 'clock' || q.diagram_type === 'clock_blank') {
-              qHtml = `
-                <div style="display: flex; flex-direction: column; align-items: center; margin: 8px 0;">
-                  <img src="/static/img/clock_blank.png" style="width: 135px; height: 135px; display: inline-block; object-fit: contain; margin-bottom: 6px;">
-                  <div style="${q.is_bold ? 'font-weight: 700;' : ''}">${formattedText}</div>
-                </div>
-              `;
-            }
-
-            if (q.supercell_cells) {
-              qHtml += `<table style="width: 100%; border-collapse: collapse; margin: 8px 0; text-align: center;">
-                <tr>${q.supercell_cells.map(c => `<td style="border: 1px solid #334155; padding: 6px; font-weight: bold; background: #f8fafc;">${c}</td>`).join('')}</tr>
-              </table>`;
-            }
-
-            qDiv.innerHTML = qHtml;
-            secDiv.appendChild(qDiv);
           });
-        }
-      }
+          sbsGrid.appendChild(leftCol);
 
-      if (sec.drawing_boxes && sec.drawing_boxes.length > 0) {
-        // Filter out any box text that was a descriptive placeholder of a diagram
-        const validBoxes = sec.drawing_boxes.filter(b => {
-          const str = String(b).toLowerCase();
-          return !str.includes('figure showing') && !str.includes('geometric figure') && !str.includes('points l, m, p') && !str.includes('points o, c, a');
-        });
+          // Right Column: Figure
+          const rightCol = document.createElement('div');
+          rightCol.style.textAlign = 'center';
+          rightCol.style.display = 'flex';
+          rightCol.style.alignItems = 'center';
+          rightCol.style.justifyContent = 'center';
 
-        if (validBoxes.length > 0) {
-          const secTitle = String(sec.title || '').toLowerCase();
-          const isClockDrawing = (
-            secTitle.includes('draw hands') || secTitle.includes('clock') || secTitle.includes('time') ||
-            validBoxes.some(b => {
-              const s = String(b).toLowerCase();
-              return s.includes('quarter') || s.includes('half past') || s.includes('o\'clock') || s.includes('past');
-            })
+          let imgSrc = '';
+          if (sec.diagram_type === 'geometry_lines') imgSrc = '/static/img/figure_q3c.png';
+          else if (sec.diagram_type === 'zigzag') imgSrc = '/static/img/figure_q3a3.png';
+          else if (sec.diagram_type === 'pictograph') imgSrc = '/static/img/pictograph_clean.png';
+          else if (sec.diagram_type === 'clock' || sec.diagram_type === 'clock_blank') imgSrc = '/static/img/clock_blank.png';
+
+          if (imgSrc) {
+            const img = document.createElement('img');
+            img.src = imgSrc;
+            img.style.maxWidth = '100%';
+            img.style.maxHeight = '145px';
+            img.style.objectFit = 'contain';
+            img.style.borderRadius = '4px';
+            rightCol.appendChild(img);
+          }
+          sbsGrid.appendChild(rightCol);
+
+          secDiv.appendChild(sbsGrid);
+        } else {
+          if (sec.diagram_type === 'pictograph') {
+            const img = document.createElement('img');
+            img.src = '/static/img/pictograph_clean.png';
+            img.style.width = '100%';
+            img.style.borderRadius = '6px';
+            img.style.margin = '10px 0';
+            secDiv.appendChild(img);
+          } else if (sec.diagram_type === 'geometry_lines') {
+            const img = document.createElement('img');
+            img.src = '/static/img/figure_q3c.png';
+            img.style.width = '70%';
+            img.style.display = 'block';
+            img.style.margin = '10px auto';
+            secDiv.appendChild(img);
+          } else if (sec.diagram_type === 'zigzag') {
+            const img = document.createElement('img');
+            img.src = '/static/img/figure_q3a3.png';
+            img.style.width = '55%';
+            img.style.display = 'block';
+            img.style.margin = '10px auto';
+            secDiv.appendChild(img);
+          } else if (sec.diagram_type === 'clock' || sec.diagram_type === 'clock_blank') {
+            const img = document.createElement('img');
+            img.src = '/static/img/clock_blank.png';
+            img.style.width = '140px';
+            img.style.height = '140px';
+            img.style.display = 'block';
+            img.style.margin = '10px auto';
+            secDiv.appendChild(img);
+          }
+
+          // Table Data (e.g. Q-2 (B) Complete the following table)
+          if (sec.table_data && Array.isArray(sec.table_data.headers) && Array.isArray(sec.table_data.rows)) {
+            const t = document.createElement('table');
+            t.style.width = '100%';
+            t.style.borderCollapse = 'collapse';
+            t.style.border = '1.5px solid #000';
+            t.style.margin = '10px 0 16px';
+            t.style.fontSize = '12pt';
+            
+            const headers = sec.table_data.headers || [];
+            const rows = sec.table_data.rows || [];
+
+            let tableHtml = `
+              <thead>
+                <tr style="background: #f1f5f9; font-weight: bold;">
+                  ${headers.map(h => `<th style="border: 1.5px solid #000; padding: 6px 10px; text-align: center;">${typeof formatMathFractions === 'function' ? formatMathFractions(h) : h}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.map((r, i) => `
+                  <tr style="background: ${i%2===1 ? '#f8fafc' : '#ffffff'};">
+                    ${headers.map((_, cIdx) => `
+                      <td style="border: 1.5px solid #000; padding: 6px 10px; text-align: ${cIdx===1?'left':'center'}; font-weight: ${cIdx<=1?'bold':'normal'};">
+                        ${(r && r[cIdx]) ? (typeof formatMathFractions === 'function' ? formatMathFractions(r[cIdx]) : r[cIdx]) : '&nbsp;'}
+                      </td>
+                    `).join('')}
+                  </tr>
+                `).join('')}
+              </tbody>
+            `;
+            t.innerHTML = tableHtml;
+            secDiv.appendChild(t);
+          }
+
+          const secSubLayout = sec.subquestions_layout || sec.options_layout || 'horizontal';
+          const isExplicitTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(secSubLayout);
+          const isExplicitHoriz = ['horizontal', '1_row'].includes(secSubLayout);
+          const isExplicitVert = ['vertical', 'stacked'].includes(secSubLayout);
+          const hasOptionsAny = questions.some(q => q && Array.isArray(q.options) && q.options.length > 0);
+          const isMcqSec = String(sec.type || '').toLowerCase() === 'mcq' || hasOptionsAny;
+
+          const isHorizontalSubq = !isMcqSec && questions.length > 1 && !isExplicitVert && (
+            isExplicitTwoCol ||
+            questions.some(q => q && ['clock', 'clock_blank'].includes(q.diagram_type)) ||
+            (isExplicitHoriz && questions.length <= 4 && !questions.some(q => q && (q.answer_lines || (q.diagram_type && !['clock', 'clock_blank'].includes(q.diagram_type))))) ||
+            (questions.every(q => q && (/^[\(\[]?[a-zA-Z0-9ivxlcdm]+[\)\]\.]/i.test(String(q.text || '').trim()) || String(q.text || '').length < 45)) && !questions.some(q => q && (q.answer_lines || q.diagram_type)))
           );
 
-          const boxGrid = document.createElement('div');
-          boxGrid.style.display = 'grid';
-          boxGrid.style.gridTemplateColumns = `repeat(${validBoxes.length}, 1fr)`;
-          boxGrid.style.gap = '16px';
-          boxGrid.style.margin = '12px 0 16px';
+          if (isHorizontalSubq) {
+            // Render subquestions in grid
+            const subGrid = document.createElement('div');
+            subGrid.className = 'subq-horizontal-grid';
+            const numCols = isExplicitTwoCol ? 2 : (isExplicitHoriz ? questions.length : Math.min(questions.length, 4));
+            subGrid.style.display = 'grid';
+            subGrid.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`;
+            subGrid.style.gap = '14px';
+            subGrid.style.margin = '8px 0 12px';
 
-          if (isClockDrawing) {
-            validBoxes.forEach(b => {
-              const bDiv = document.createElement('div');
-              bDiv.style.textAlign = 'center';
-              let labelText = String(b).trim();
-              if (!labelText.includes('___') && !labelText.includes('...')) labelText += ' ____________';
-              bDiv.innerHTML = `
-                <div style="margin-bottom: 6px;">
-                  <img src="/static/img/clock_blank.png" style="width: 130px; height: 130px; display: inline-block; object-fit: contain;">
-                </div>
-                <div style="font-weight: 700; color: #1e293b; font-size: 11pt;">${labelText}</div>
-              `;
-              boxGrid.appendChild(bDiv);
+            questions.forEach((rawQ, qIdx) => {
+              try {
+                if (!rawQ) return;
+                const q = typeof rawQ === 'string' ? { text: rawQ } : rawQ;
+                const qDiv = document.createElement('div');
+                qDiv.style.fontSize = '12pt';
+                qDiv.style.fontWeight = q.is_bold ? '700' : '500';
+                const rawText = String(q.text !== undefined && q.text !== null ? q.text : '');
+                let content = formatQuestionTextWithBoldNumber(rawText);
+                const hasInlineBlank = rawText.includes('____') || rawText.includes('.......');
+                if (q.answer_lines && !hasInlineBlank) {
+                  content = `<div style="display: flex; align-items: flex-end; gap: 8px; width: 100%;">
+                    <span>${content}</span>
+                    <span style="flex: 1; border-bottom: 1.5px solid #94a3b8; min-width: 60px; height: 1em; margin-bottom: 2px;"></span>
+                  </div>`;
+                  for (let l = 1; l < q.answer_lines; l++) {
+                    content += `<div style="border-bottom: 1.5px solid #94a3b8; width: 100%; height: 1.5em; margin-top: 4px;"></div>`;
+                  }
+                }
+
+                const isShape = ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].includes(q.diagram_type) ||
+                  ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].some(s => rawText.toLowerCase().includes(s) && (rawText.includes('[') || (sec.title || '').toLowerCase().includes('shape')));
+
+                if (isShape) {
+                  let detectedShape = q.diagram_type;
+                  if (!detectedShape || !['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].includes(detectedShape)) {
+                    for (const s of ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']) {
+                      if (rawText.toLowerCase().includes(s)) {
+                        detectedShape = s;
+                        break;
+                      }
+                    }
+                  }
+                  const shapeSrc = `/static/img/shape_${detectedShape || 'cylinder'}.png`;
+                  let cleanText = rawText.replace(/\[\s*(?:cylinder|pyramid|circle|sphere|cone|cube|cuboid)[^\]]*\]/gi, '').trim();
+                  const prefixMatch = cleanText.match(/^\s*[\(\[]?([a-zA-Z]|\d+|[ivxlcdmIVXLCDM]+)[\)\]\.]\s*/);
+                  const numPrefix = prefixMatch ? prefixMatch[0].trim() : `(${qIdx+1})`;
+                  const afterPrefix = cleanText.replace(/^\s*[\(\[]?([a-zA-Z]|\d+|[ivxlcdmIVXLCDM]+)[\)\]\.]\s*/, '').trim();
+                  const hasEq = cleanText.includes('=') || !afterPrefix;
+                  const hasCustomText = afterPrefix.replace(/[=\._\s\-]+/g, '').trim().length > 0;
+
+                  content = `
+                    <div style="display: flex; align-items: center; gap: 10px; margin: 4px 0;">
+                      <span style="font-weight: 700; font-size: 12pt; min-width: 26px;">${numPrefix}</span>
+                      <img src="${shapeSrc}" style="max-height: 52px; max-width: 85px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px;">
+                      ${hasCustomText ? `<span style="font-size: 11pt; font-weight: 600;">${afterPrefix}</span>` : `
+                        <span style="font-size: 12pt; font-weight: 600;">${hasEq ? '=' : ''}</span>
+                        <span style="flex: 1; border-bottom: 1.5px solid #000; height: 1.2em; min-width: 70px; margin-bottom: 2px;"></span>
+                      `}
+                    </div>
+                  `;
+                } else if (['clock', 'clock_blank'].includes(q.diagram_type)) {
+                  content = `
+                    <div style="text-align: center; margin-bottom: 6px;">
+                      <img src="/static/img/clock_blank.png" style="width: 130px; height: 130px; display: inline-block; object-fit: contain;">
+                    </div>
+                    <div style="text-align: center; font-size: 11pt; font-weight: 700;">${content}</div>
+                  `;
+                } else if (q.diagram_type === 'zigzag') {
+                  content = `
+                    <div style="margin-bottom: 4px; text-align: center;"><img src="/static/img/figure_q3a3.png" style="max-height: 50px; display: inline-block;"></div>
+                    <div>${content}</div>
+                  `;
+                } else if (q.diagram_type === 'geometry_lines') {
+                  content = `
+                    <div style="margin-bottom: 4px; text-align: center;"><img src="/static/img/figure_q3c.png" style="max-height: 55px; display: inline-block;"></div>
+                    <div>${content}</div>
+                  `;
+                }
+                qDiv.innerHTML = content;
+                subGrid.appendChild(qDiv);
+              } catch (gridErr) {
+                console.error('Error rendering horizontal question', qIdx, gridErr);
+              }
             });
+
+            secDiv.appendChild(subGrid);
           } else {
-            validBoxes.forEach(b => {
-              const bDiv = document.createElement('div');
-              bDiv.style.border = '1px dashed #94a3b8';
-              bDiv.style.height = '90px';
-              bDiv.style.borderRadius = '4px';
-              bDiv.style.display = 'flex';
-              bDiv.style.alignItems = 'center';
-              bDiv.style.justifyContent = 'center';
-              bDiv.style.color = '#334155';
-              bDiv.style.fontWeight = 'bold';
-              bDiv.innerText = b;
-              boxGrid.appendChild(bDiv);
+            questions.forEach((rawQ, qIdx) => {
+              try {
+                if (!rawQ) return;
+                const q = typeof rawQ === 'string' ? { text: rawQ } : rawQ;
+                const qDiv = document.createElement('div');
+                qDiv.style.marginBottom = '10px';
+                qDiv.style.fontSize = '12pt';
+                
+                let qHtml = '';
+                const rawText = String(q.text !== undefined && q.text !== null ? q.text : '');
+                const formattedText = formatQuestionTextWithBoldNumber(rawText);
+                const hasInlineBlank = rawText.includes('____') || rawText.includes('.......');
+                const rawOpts = Array.isArray(q.options) ? q.options : (typeof q.options === 'string' ? [q.options] : []);
+                const hasOpts = rawOpts.length > 0;
+
+                const isShape = ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].includes(q.diagram_type) ||
+                  ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].some(s => rawText.toLowerCase().includes(s) && (rawText.includes('[') || (sec.title || '').toLowerCase().includes('shape')));
+
+                if (isShape) {
+                  let detectedShape = q.diagram_type;
+                  if (!detectedShape || !['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid'].includes(detectedShape)) {
+                    for (const s of ['cylinder', 'pyramid', 'sphere', 'circle', 'cone', 'cube', 'cuboid']) {
+                      if (rawText.toLowerCase().includes(s)) {
+                        detectedShape = s;
+                        break;
+                      }
+                    }
+                  }
+                  const shapeSrc = `/static/img/shape_${detectedShape || 'cylinder'}.png`;
+                  let cleanText = rawText.replace(/\[\s*(?:cylinder|pyramid|circle|sphere|cone|cube|cuboid)[^\]]*\]/gi, '').trim();
+                  const prefixMatch = cleanText.match(/^\s*[\(\[]?([a-zA-Z]|\d+|[ivxlcdmIVXLCDM]+)[\)\]\.]\s*/);
+                  const numPrefix = prefixMatch ? prefixMatch[0] : `(${qIdx+1})`;
+                  const hasEq = cleanText.includes('=');
+
+                  qHtml = `
+                    <div style="display: flex; align-items: center; gap: 14px; margin: 12px 0;">
+                      <span style="font-weight: 700; font-size: 12pt; min-width: 26px;">${numPrefix}</span>
+                      <img src="${shapeSrc}" style="max-height: 52px; max-width: 90px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px;">
+                      ${hasEq ? '<span style="font-weight: 700; font-size: 12pt;">=</span>' : ''}
+                      <span style="flex: 1; border-bottom: 1.5px solid #94a3b8; min-width: 150px; height: 1em; margin-bottom: 4px;"></span>
+                    </div>
+                  `;
+                  qDiv.innerHTML = qHtml;
+                  secDiv.appendChild(qDiv);
+                  return;
+                }
+
+                if (q.answer_lines && !hasInlineBlank && !hasOpts) {
+                  qHtml = `<div style="display: flex; align-items: flex-end; gap: 8px; width: 100%;">
+                    <span style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</span>
+                    <span style="flex: 1; border-bottom: 1.5px solid #94a3b8; min-width: 100px; height: 1em; margin-bottom: 2px;"></span>
+                  </div>`;
+                  for (let l = 1; l < q.answer_lines; l++) {
+                    qHtml += `<div style="border-bottom: 1.5px solid #94a3b8; width: 100%; height: 1.6em; margin-top: 6px;"></div>`;
+                  }
+                } else {
+                  qHtml = `<div style="${q.is_bold ? 'font-weight: 600;' : ''}">${formattedText}</div>`;
+                }
+                
+                if (hasOpts || isMcqSec) {
+                  const optLayout = q.options_layout || sec.options_layout || sec.subquestions_layout || 'horizontal';
+                  const isTwoCol = ['two_columns', '2_columns', '2col', 'two-columns'].includes(optLayout);
+                  const isVert = ['vertical', 'stacked', '1_col'].includes(optLayout);
+                  const optGridCols = isTwoCol ? 'repeat(2, 1fr)' : (isVert ? '1fr' : `repeat(${rawOpts.length || 4}, 1fr)`);
+
+                  if (hasOpts) {
+                    qHtml += `<div style="display: grid; grid-template-columns: ${optGridCols}; gap: 10px; margin: 6px 0 10px 14px; font-size: 12pt;">
+                      ${rawOpts.map(o => `<div>${formatQuestionTextWithBoldNumber(o)}</div>`).join('')}
+                    </div>`;
+                  }
+                } else if (sec.type === 'true_false') {
+                  qHtml = `<div style="display: flex; justify-content: space-between;"><span>${formattedText}</span> <span style="color: #94a3b8; font-weight: bold;">[ &nbsp; &nbsp; &nbsp; ]</span></div>`;
+                }
+
+                if (q.diagram_type === 'zigzag') {
+                  qHtml += `<img src="/static/img/figure_q3a3.png" style="width: 50%; display: block; margin: 8px auto; border-radius: 4px;">`;
+                } else if (q.diagram_type === 'geometry_lines') {
+                  qHtml += `<img src="/static/img/figure_q3c.png" style="width: 65%; display: block; margin: 8px auto; border-radius: 4px;">`;
+                } else if (q.diagram_type === 'pictograph') {
+                  qHtml += `<img src="/static/img/pictograph_clean.png" style="width: 90%; display: block; margin: 8px auto; border-radius: 4px;">`;
+                } else if (q.diagram_type === 'clock' || q.diagram_type === 'clock_blank') {
+                  qHtml = `
+                    <div style="display: flex; flex-direction: column; align-items: center; margin: 8px 0;">
+                      <img src="/static/img/clock_blank.png" style="width: 135px; height: 135px; display: inline-block; object-fit: contain; margin-bottom: 6px;">
+                      <div style="${q.is_bold ? 'font-weight: 700;' : ''}">${formattedText}</div>
+                    </div>
+                  `;
+                }
+
+                if (Array.isArray(q.supercell_cells)) {
+                  qHtml += `<table style="width: 100%; border-collapse: collapse; margin: 8px 0; text-align: center;">
+                    <tr>${q.supercell_cells.map(c => `<td style="border: 1px solid #334155; padding: 6px; font-weight: bold; background: #f8fafc;">${c}</td>`).join('')}</tr>
+                  </table>`;
+                }
+
+                qDiv.innerHTML = qHtml;
+                secDiv.appendChild(qDiv);
+              } catch (vertErr) {
+                console.error('Error rendering question', qIdx, vertErr);
+              }
             });
           }
-          secDiv.appendChild(boxGrid);
         }
-      }
 
-      container.appendChild(secDiv);
+        if (sec.drawing_boxes) {
+          const rawBoxes = Array.isArray(sec.drawing_boxes) ? sec.drawing_boxes : [String(sec.drawing_boxes)];
+          const validBoxes = rawBoxes.filter(b => {
+            const str = String(b || '').toLowerCase();
+            return !str.includes('figure showing') && !str.includes('geometric figure') && !str.includes('points l, m, p') && !str.includes('points o, c, a');
+          });
+
+          if (validBoxes.length > 0) {
+            const secTitle = String(sec.title || '').toLowerCase();
+            const isClockDrawing = (
+              secTitle.includes('draw hands') || secTitle.includes('clock') || secTitle.includes('time') ||
+              validBoxes.some(b => {
+                const s = String(b || '').toLowerCase();
+                return s.includes('quarter') || s.includes('half past') || s.includes('o\'clock') || s.includes('past');
+              })
+            );
+
+            const boxGrid = document.createElement('div');
+            boxGrid.style.display = 'grid';
+            boxGrid.style.gridTemplateColumns = `repeat(${validBoxes.length}, 1fr)`;
+            boxGrid.style.gap = '16px';
+            boxGrid.style.margin = '12px 0 16px';
+
+            if (isClockDrawing) {
+              validBoxes.forEach(b => {
+                const bDiv = document.createElement('div');
+                bDiv.style.textAlign = 'center';
+                let labelText = String(b || '').trim();
+                if (!labelText.includes('___') && !labelText.includes('...')) labelText += ' ____________';
+                bDiv.innerHTML = `
+                  <div style="margin-bottom: 6px;">
+                    <img src="/static/img/clock_blank.png" style="width: 130px; height: 130px; display: inline-block; object-fit: contain;">
+                  </div>
+                  <div style="font-weight: 700; color: #1e293b; font-size: 11pt;">${labelText}</div>
+                `;
+                boxGrid.appendChild(bDiv);
+              });
+            } else {
+              validBoxes.forEach(b => {
+                const bDiv = document.createElement('div');
+                bDiv.style.border = '1px dashed #94a3b8';
+                bDiv.style.height = '90px';
+                bDiv.style.borderRadius = '4px';
+                bDiv.style.display = 'flex';
+                bDiv.style.alignItems = 'center';
+                bDiv.style.justifyContent = 'center';
+                bDiv.style.color = '#334155';
+                bDiv.style.fontWeight = 'bold';
+                bDiv.innerText = b;
+                boxGrid.appendChild(bDiv);
+              });
+            }
+            secDiv.appendChild(boxGrid);
+          }
+        }
+      } catch (secErr) {
+        console.error('Error rendering section', idx, secErr);
+      }
     });
   }
 </script>

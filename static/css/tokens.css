@@ -1,31 +1,38 @@
 :root {
-  /* Brand Colors */
-  --primary-50: #eef2ff;
-  --primary-100: #e0e7ff;
-  --primary-200: #c7d2fe;
-  --primary-500: #6366f1;
-  --primary-600: #4f46e5;
-  --primary-700: #4338ca;
+  /* Brand Colors - White & Warm Orange / Light Orange Palette */
+  --primary-50: #fff7ed;   /* Lightest warm cream/orange tint */
+  --primary-100: #ffedd5;  /* Soft light peach/orange */
+  --primary-200: #fed7aa;  /* Light orange border & focus tint */
+  --primary-300: #fdba74;  /* Muted pastel orange */
+  --primary-400: #fb923c;  /* Bright vibrant light orange */
+  --primary-500: #f97316;  /* Radiant orange */
+  --primary-600: #ea580c;  /* Primary brand rich orange */
+  --primary-700: #c2410c;  /* Deep burnt orange */
+  --primary-800: #9a3412;  /* Dark terracotta */
+  --primary-900: #7c2d12;  /* Deep rust */
   
-  /* Accent Colors */
-  --accent-50: #f0fdfa;
-  --accent-400: #2dd4bf;
-  --accent-500: #14b8a6;
-  --accent-600: #0d9488;
-  --sky-500: #0ea5e9;
+  /* Accent Colors - Warm Golden Amber */
+  --accent-50: #fffbeb;
+  --accent-100: #fef3c7;
+  --accent-200: #fde68a;
+  --accent-300: #fcd34d;
+  --accent-400: #fbbf24;
+  --accent-500: #f59e0b;
+  --accent-600: #d97706;
+  --sky-500: #f97316;      /* Orange alias for legacy components */
 
-  /* Neutral Slate Scale */
-  --slate-50: #f8fafc;
-  --slate-100: #f1f5f9;
-  --slate-200: #e2e8f0;
-  --slate-300: #cbd5e1;
-  --slate-400: #94a3b8;
-  --slate-500: #64748b;
-  --slate-600: #475569;
-  --slate-700: #334155;
-  --slate-800: #1e293b;
-  --slate-900: #0f172a;
-  --slate-950: #020617;
+  /* Neutral Scale - Warm Stone & Crisp White Surfaces */
+  --slate-50: #fffaf5;     /* Warm white background */
+  --slate-100: #fbf5ef;    /* Soft warm neutral surface */
+  --slate-200: #f0ebe4;    /* Light borders */
+  --slate-300: #e3ded6;    /* Input borders */
+  --slate-400: #a8a29e;    /* Muted text */
+  --slate-500: #78716c;    /* Supporting labels */
+  --slate-600: #57534e;    /* Subheadings */
+  --slate-700: #44403c;    /* Body titles */
+  --slate-800: #292524;    /* Main body text */
+  --slate-900: #1c1917;    /* Deep warm charcoal for headers */
+  --slate-950: #0c0a09;    /* Near-black */
 
   /* Semantic Feedback */
   --success: #10b981;
@@ -54,11 +61,11 @@
   --radius-full: 9999px;
 
   /* Elevations & Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.25);
+  --shadow-sm: 0 1px 2px 0 rgba(28, 25, 23, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(28, 25, 23, 0.07), 0 2px 4px -2px rgba(28, 25, 23, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(28, 25, 23, 0.08), 0 4px 6px -4px rgba(28, 25, 23, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(28, 25, 23, 0.1), 0 8px 10px -6px rgba(28, 25, 23, 0.04);
+  --shadow-glow: 0 0 22px rgba(249, 115, 22, 0.3);
 
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);

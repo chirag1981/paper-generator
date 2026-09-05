@@ -13,7 +13,7 @@
     <a href="{{ url_for('main.editor') }}" class="nav-item {% if request.path == '/editor' %}active{% endif %}">
       <i class="fa-solid fa-sliders"></i> Live Editor
     </a>
-    <a href="{{ url_for('main.preview') }}" class="nav-item {% if request.path == '/preview' %}active{% endif %}">
+    <a href="{{ url_for('main.preview') }}" class="nav-item {% if request.path == '/preview' %}active{% endif %}" onclick="if (typeof goToPrintablePreview === 'function') { goToPrintablePreview(event); }">
       <i class="fa-solid fa-eye"></i> Printable Preview
     </a>
   </nav>

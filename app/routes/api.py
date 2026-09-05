@@ -59,6 +59,79 @@ def upload_images():
     })
 
 
+@api_bp.route('/reset', methods=['POST'])
+def reset_uploaded_files():
+    """Completely deletes all uploaded files from the uploads directory and resets session state."""
+    try:
+        upload_dir = current_app.config['UPLOAD_FOLDER']
+        removed_count = 0
+        if os.path.exists(upload_dir):
+            for fname in os.listdir(upload_dir):
+                fpath = os.path.join(upload_dir, fname)
+                if os.path.isfile(fpath):
+                    try:
+                        os.remove(fpath)
+                        removed_count += 1
+                    except Exception as e:
+                        current_app.logger.warning(f"Could not remove {fpath}: {e}")
+
+        session.pop('uploaded_files', None)
+        session.pop('current_paper', None)
+        cache_path = os.path.join(upload_dir, 'last_paper.json')
+        if os.path.exists(cache_path):
+            try:
+                os.remove(cache_path)
+            except Exception:
+                pass
+
+        return jsonify({
+            'success': True,
+            'message': f'Completely removed {removed_count} uploaded file(s) from the app.',
+            'removed_count': removed_count
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error resetting uploaded files: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/current-paper', methods=['GET', 'POST'])
+def current_paper():
+    """Gets or sets the current working paper in server session and disk cache."""
+    upload_dir = current_app.config['UPLOAD_FOLDER']
+    cache_path = os.path.join(upload_dir, 'last_paper.json')
+
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        if data and isinstance(data, dict) and data.get('sections'):
+            session['current_paper'] = data
+            try:
+                import json
+                with open(cache_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False)
+            except Exception as e:
+                current_app.logger.warning(f"Could not write last_paper.json: {e}")
+            return jsonify({'success': True})
+        return jsonify({'success': False, 'error': 'No valid paper data provided'}), 400
+
+    # GET request: check session, then last_paper.json
+    paper = session.get('current_paper')
+    if not paper and os.path.exists(cache_path):
+        try:
+            import json
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                loaded = json.load(f)
+                if loaded and isinstance(loaded, dict) and loaded.get('sections'):
+                    paper = loaded
+                    session['current_paper'] = paper
+        except Exception as e:
+            current_app.logger.warning(f"Could not read last_paper.json: {e}")
+
+    if paper and isinstance(paper, dict) and paper.get('sections'):
+        return jsonify({'success': True, 'paper': paper})
+
+    return jsonify({'success': False, 'message': 'No active paper in session or cache'})
+
+
 @api_bp.route('/scan-ocr', methods=['POST'])
 def scan_ocr():
     """Extracts structured questions from uploaded images using Multilingual Gemini OCR."""
@@ -93,6 +166,16 @@ def scan_ocr():
             language_hint=language_hint,
             api_key=custom_key
         )
+
+        # Store in session and disk cache for guaranteed cross-page persistence
+        session['current_paper'] = extracted_paper
+        cache_path = os.path.join(upload_dir, 'last_paper.json')
+        try:
+            import json
+            with open(cache_path, 'w', encoding='utf-8') as f:
+                json.dump(extracted_paper, f, ensure_ascii=False)
+        except Exception as ce:
+            current_app.logger.warning(f"Could not write last_paper.json: {ce}")
 
         return jsonify({
             'success': True,
@@ -264,7 +347,7 @@ def generate_pdf():
                 'success': True,
                 'filename': docx_filename,
                 'download_url': f'/exports/{docx_filename}',
-                'message': 'Generated DOCX'
+                'message': 'Generated DOCX (PDF unavailable)'
             })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

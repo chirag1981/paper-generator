@@ -20,4 +20,12 @@ def create_app(config_name=None):
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
 
+    @app.after_request
+    def add_cache_control_headers(response):
+        if app.config.get('DEBUG'):
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+        return response
+
     return app

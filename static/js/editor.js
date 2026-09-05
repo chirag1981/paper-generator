@@ -43,20 +43,8 @@ function loadUploadedImages() {
   const stored = JSON.parse(localStorage.getItem('uploaded_images') || '[]');
   const countEl = document.getElementById('scanAllCount');
   if (typeof initViewer === 'function') {
-    if (stored.length === 0) {
-      const defaults = [
-        { url: '/uploads/WhatsApp Image 2026-09-01 at 1.06.53 PM.jpeg', filename: 'page1' },
-        { url: '/uploads/WhatsApp Image 2026-09-01 at 1.07.13 PM.jpeg', filename: 'page2' },
-        { url: '/uploads/WhatsApp Image 2026-09-01 at 1.07.30 PM.jpeg', filename: 'page3' },
-        { url: '/uploads/WhatsApp Image 2026-09-01 at 1.07.46 PM.jpeg', filename: 'page4' },
-        { url: '/uploads/WhatsApp Image 2026-09-01 at 1.08.01 PM.jpeg', filename: 'page5' }
-      ];
-      initViewer(defaults);
-      if (countEl) countEl.innerText = '5';
-    } else {
-      initViewer(stored);
-      if (countEl) countEl.innerText = String(stored.length);
-    }
+    initViewer(stored);
+    if (countEl) countEl.innerText = String(stored.length);
   }
 }
 
@@ -152,8 +140,29 @@ function fetchSamplePaper() {
 function saveToLocal() {
   syncFormToState();
   if (paperData) {
-    localStorage.setItem('current_paper', JSON.stringify(paperData));
+    try {
+      localStorage.setItem('current_paper', JSON.stringify(paperData));
+    } catch(e) {
+      console.warn('localStorage error:', e);
+    }
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/current-paper', new Blob([JSON.stringify(paperData)], { type: 'application/json' }));
+      } else {
+        fetch('/api/current-paper', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(paperData)
+        }).catch(() => {});
+      }
+    } catch(e) {}
   }
+}
+
+function goToPrintablePreview(event) {
+  if (event) event.preventDefault();
+  saveToLocal();
+  window.location.href = '/preview';
 }
 
 function toggleResetMenu() {
@@ -163,44 +172,98 @@ function toggleResetMenu() {
   }
 }
 
-function clearPaperToBlank() {
+function resetApp() {
   const menu = document.getElementById('resetMenu');
   if (menu) menu.style.display = 'none';
 
-  if (confirm('Are you sure you want to clear all questions and start with a blank paper?')) {
-    paperData = {
-      metadata: {
-        exam_title: "Exam Paper",
-        standard: "Std. ",
-        subject: "",
-        total_marks: "0",
-        date: "",
-        day: "",
-        roll_no: "",
-        time_limit: "2 Hours"
-      },
-      sections: [],
-      custom_marks_table: []
-    };
-    saveToLocal();
-    renderEditor();
-    showToast('Cleared all questions. Ready for new paper!', 'info');
+  if (!confirm('Are you sure you want to reset?\n\nThis will completely remove all uploaded files, scanned document pages, and questions from the app.')) {
+    return;
   }
+
+  // 1. Tell backend to delete all uploaded files from disk
+  fetch('/api/reset', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      console.log('Server files reset:', data);
+    })
+    .catch(err => console.warn('Server reset error:', err));
+
+  // 2. Clear client-side stored images and paper
+  localStorage.removeItem('uploaded_images');
+  localStorage.removeItem('current_paper');
+  localStorage.removeItem('is_new_upload');
+  localStorage.removeItem('auto_trigger_ocr');
+
+  // 3. Reset file input value so re-uploading the same file triggers onchange
+  const fileInput = document.getElementById('editorFileInput');
+  if (fileInput) fileInput.value = '';
+
+  // 4. Clear image viewer
+  if (typeof clearViewer === 'function') {
+    clearViewer();
+  } else if (typeof initViewer === 'function') {
+    initViewer([]);
+  }
+
+  // 5. Reset paper data to blank state
+  paperData = {
+    metadata: {
+      exam_title: "Exam Paper",
+      standard: "Std. ",
+      subject: "",
+      total_marks: "0",
+      date: "",
+      day: "",
+      roll_no: "",
+      time_limit: "2 Hours"
+    },
+    sections: [],
+    custom_marks_table: []
+  };
+
+  saveToLocal();
+  renderEditor();
+  showToast('Reset complete. All uploaded files and questions removed.', 'success');
+}
+
+function clearPaperToBlank() {
+  resetApp();
 }
 
 function resetToSamplePaper() {
   const menu = document.getElementById('resetMenu');
   if (menu) menu.style.display = 'none';
 
-  if (confirm('Reset paper back to the preloaded Std. 6 Mathematics sample exam?')) {
+  if (confirm('Reset paper back to the preloaded Std. 6 Mathematics sample exam?\n\nAny uploaded files from your previous session will be removed.')) {
+    // 1. Remove uploaded files from server
+    fetch('/api/reset', { method: 'POST' })
+      .then(r => r.json())
+      .catch(err => console.warn('Server reset warning:', err));
+
+    // 2. Clear uploaded files in local storage
+    localStorage.removeItem('uploaded_images');
     localStorage.removeItem('current_paper');
+    localStorage.removeItem('is_new_upload');
+    localStorage.removeItem('auto_trigger_ocr');
+
+    // 3. Reset file input and viewer
+    const fileInput = document.getElementById('editorFileInput');
+    if (fileInput) fileInput.value = '';
+
+    if (typeof clearViewer === 'function') {
+      clearViewer();
+    } else if (typeof initViewer === 'function') {
+      initViewer([]);
+    }
+
+    // 4. Fetch and render sample paper
     fetchSamplePaper();
-    showToast('Reset to default Std. 6 sample paper', 'success');
+    showToast('Loaded preloaded Std. 6 sample paper. Uploaded files cleared.', 'success');
   }
 }
 
 function resetToDefault() {
-  toggleResetMenu();
+  resetApp();
 }
 
 function syncFormToState() {
@@ -228,6 +291,7 @@ function syncFormToState() {
   const rollEl = document.getElementById('metaRollNo');
   if (rollEl) paperData.metadata.roll_no = rollEl.value.trim();
 }
+
 
 function triggerDownload(url, filename) {
   const a = document.createElement('a');
@@ -711,21 +775,21 @@ function renderEditor() {
     const stored = JSON.parse(localStorage.getItem('uploaded_images') || '[]');
     const count = stored.length || (typeof uploadedImages !== 'undefined' ? uploadedImages.length : 0);
     container.innerHTML = `
-      <div style="background: white; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 48px 24px; text-align: center; margin-top: 10px; box-shadow: var(--shadow-sm);">
-        <div style="width: 60px; height: 60px; background: #e0f2fe; color: #0284c7; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 16px;">
+      <div style="background: white; border: 2px dashed #fed7aa; border-radius: 12px; padding: 48px 24px; text-align: center; margin-top: 10px; box-shadow: var(--shadow-sm);">
+        <div style="width: 60px; height: 60px; background: #ffedd5; color: #ea580c; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 16px;">
           <i class="fa-solid fa-cloud-arrow-up"></i>
         </div>
-        <h3 style="font-size: 1.25rem; font-weight: 800; color: #0f172a; margin-bottom: 8px;">
+        <h3 style="font-size: 1.25rem; font-weight: 800; color: #1c1917; margin-bottom: 8px;">
           ${count > 0 ? `${count} Document Page(s) Uploaded!` : 'Ready for New Exam Paper'}
         </h3>
-        <p style="color: #64748b; font-size: 0.95rem; max-width: 520px; margin: 0 auto 24px; line-height: 1.5;">
+        <p style="color: #78716c; font-size: 0.95rem; max-width: 520px; margin: 0 auto 24px; line-height: 1.5;">
           ${count > 0 
             ? `Old questions have been reset. Click <strong>"Scan All (${count} Pages)"</strong> to automatically extract questions with AI Multilingual OCR, or add your questions manually.` 
             : `Upload your handwritten exam pages on the left, or click "Add Section" to manually create questions.`}
         </p>
         <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
           ${count > 0 ? `
-            <button type="button" class="btn btn-primary" onclick="triggerAiScan(false)" style="background: linear-gradient(135deg, #06b6d4, #2563eb); border: none; font-weight: 700; padding: 10px 20px;">
+            <button type="button" class="btn btn-primary" onclick="triggerAiScan(false)" style="background: linear-gradient(135deg, #f97316, #ea580c); box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3); border: none; font-weight: 700; padding: 10px 20px;">
               <i class="fa-solid fa-wand-magic-sparkles"></i> Scan All (${count} Pages) with AI OCR
             </button>
           ` : `
